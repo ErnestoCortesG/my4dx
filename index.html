@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>my4DX · ClickSeguros 2026</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen" class="screen">
+  <div class="login-box">
+    <div class="login-logo">my<em>4DX</em></div>
+    <div class="login-sub">ClickSeguros · Dirección Comercial 2026</div>
+    <div class="login-field">
+      <label>Usuario</label>
+      <input id="l-user" type="text" placeholder="usuario" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <input id="l-pass" type="password" placeholder="••••••" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <div class="login-err" id="l-err"></div>
+    <button class="btn-login" onclick="login()">Entrar</button>
+    <div class="login-hint">Demo: admin/admin123 · integrante/click2026 · view/view2026</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-shell" class="screen">
+  <div class="topnav">
+    <div class="brand">my<em>4DX</em> <span style="font-size:10px;font-weight:400;opacity:.6;margin-left:4px">ClickSeguros 2026</span></div>
+    <div class="nav-tab active" id="tab-tablero"      onclick="goPage('tablero',this)">Tablero MCI</div>
+    <div class="nav-tab"        id="tab-compromisos"  onclick="goPage('compromisos',this)">Compromisos</div>
+    <div class="nav-tab"        id="tab-scores"       onclick="goPage('scores',this)">Scores</div>
+    <div class="nav-tab"        id="tab-admin"        onclick="goPage('admin',this)" style="display:none">Administración</div>
+    <div class="nav-right">
+      <button class="btn-nav" onclick="semAnterior()">◀</button>
+      <span class="week-display" id="wlbl">Sem 1</span>
+      <button class="btn-nav" onclick="semSiguiente()">▶</button>
+      <button class="btn-save" id="bsave" onclick="guardar()" style="display:none">Guardar</button>
+      <div class="user-pill" onclick="logout()">
+        <div class="upav" id="nav-av">A</div>
+        <div>
+          <div class="uname" id="nav-un">Admin</div>
+          <div class="urole" id="nav-ur">Administrador</div>
+        </div>
+        <span style="color:rgba(255,255,255,.4);font-size:10px;margin-left:2px">✕</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <div class="sidebar">
+      <div class="sb-hdr">Dirección Comercial</div>
+      <div id="sb-members"></div>
+      <div class="sb-divider"></div>
+      <div class="sb-team-hdr">Vista general</div>
+      <div class="mcard active" id="card-todos" onclick="selectM('todos')">
+        <div class="mav" style="background:#E8220A;font-size:10px;width:30px;height:30px">ALL</div>
+        <div class="minfo">
+          <div class="mname" style="font-size:10px">Todos</div>
+          <div class="mcargo">Dir. Comercial</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="page-tablero" class="page active">
+        <div id="mhdr-box"></div>
+        <div class="sgrid" id="scards"></div>
+        <div class="tgrid" id="twigs"></div>
+        <div id="tpreds"></div>
+      </div>
+      <div id="page-compromisos" class="page">
+        <div class="wbar">
+          <h2 id="ctit">Compromisos</h2>
+          <button class="bconfirm" id="bnewcomp"
+            style="padding:6px 12px;font-size:12px;display:none"
+            onclick="openModalComp()">+ Nuevo</button>
+        </div>
+        <div id="clist"></div>
+      </div>
+      <div id="page-scores" class="page">
+        <div class="wbar"><h2>Scores por líder</h2></div>
+        <div class="ssec" id="scorelist"></div>
+      </div>
+      <div id="page-admin" class="page">
+        <div class="wbar"><h2>Panel de administración</h2></div>
+        <div class="agrid" id="apanel"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Nuevo compromiso -->
+<div class="mov" id="m-comp">
+  <div class="modal">
+    <h3>Nuevo compromiso</h3>
+    <div class="frow" id="m-lider-row">
+      <label>Líder</label>
+      <select id="m-lider"></select>
+    </div>
+    <div class="frow">
+      <label>MCI</label>
+      <select id="m-mci">
+        <option value="MCI 1 · Conservación">MCI 1 · Conservación</option>
+        <option value="MCI 2 · Recluta">MCI 2 · Recluta</option>
+        <option value="Soporte 4DX">Soporte 4DX</option>
+        <option value="Ambos MCIs">Ambos MCIs</option>
+      </select>
+    </div>
+    <div class="frow">
+      <label>Compromiso</label>
+      <textarea id="m-texto" placeholder="Acción concreta y medible…"></textarea>
+    </div>
+    <div class="mbtns">
+      <button type="button" class="bcancel"  onclick="closeModal('m-comp')">Cancelar</button>
+      <button type="button" class="bconfirm" onclick="addComp()">Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Usuario -->
+<div class="mov" id="m-user">
+  <div class="modal">
+    <h3 id="m-user-tit">Nuevo usuario</h3>
+    <div class="frow"><label>Nombre completo</label><input id="u-nom"   type="text" autocomplete="off" placeholder="Nombre Apellido"></div>
+    <div class="frow"><label>Usuario</label>         <input id="u-usr"   type="text" autocomplete="off" placeholder="usuario123"></div>
+    <div class="frow"><label>Contraseña</label><input id="u-pwd" type="password" autocomplete="off" placeholder="mínimo 6 caracteres"></div>
+    <div class="frow">
+      <label>Rol</label>
+      <select id="u-rol" onchange="onRolChange()">
+        <option value="admin">Administrador</option>
+        <option value="integrante">Integrante de equipo</option>
+        <option value="visualizador">Visualizador</option>
+      </select>
+    </div>
+    <div class="frow" id="u-mid-row">
+      <label>Integrante asociado</label>
+      <select id="u-mid"></select>
+    </div>
+    <div class="frow"><label>Área / Cargo</label><input id="u-cargo" type="text" autocomplete="off" placeholder="Área o cargo"></div>
+    <div class="mbtns">
+      <button type="button" class="bcancel"  onclick="closeModal('m-user')">Cancelar</button>
+      <button type="button" class="bconfirm" onclick="saveUser()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Nuevo MCI -->
+<div class="mov" id="m-mci">
+  <div class="modal">
+    <h3>Nuevo MCI general</h3>
+    <div class="frow"><label>Título</label>              <input    id="mci-tit"  type="text"   placeholder="Nombre del MCI"></div>
+    <div class="frow"><label>Descripción</label>         <textarea id="mci-desc"               placeholder="Fórmula, base y meta"></textarea></div>
+    <div class="frow"><label>Valor inicio</label>        <input    id="mci-ini"  type="number" placeholder="0"></div>
+    <div class="frow"><label>Meta al 31 dic 2026</label> <input    id="mci-meta" type="number" placeholder="100"></div>
+    <div class="frow"><label>Unidad (%, claves…)</label> <input    id="mci-uni"  type="text"   placeholder="%"></div>
+    <div class="mbtns">
+      <button type="button" class="bcancel"  onclick="closeModal('m-mci')">Cancelar</button>
+      <button type="button" class="bconfirm" onclick="saveMCI()">Guardar MCI</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="tst"></div>
+
+<!-- Scripts: orden de dependencias data → state → auth → render → app -->
+<script src="js/data.js"></script>
+<script src="js/state.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/render.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
