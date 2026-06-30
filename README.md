@@ -1,6 +1,6 @@
 # my4DX · ClickSeguros 2026
 
-Tablero de ejecución **4DX** (Las 4 Disciplinas de la Ejecución) para la Dirección Comercial de ClickSeguros. Permite monitorear el avance semanal de los dos MCIs generales, las medidas predictivas de cada área, los compromisos individuales y el score de cumplimiento por líder.
+Tablero de ejecución **4DX** (Las 4 Disciplinas de la Ejecución) para una Dirección Comercial . Permite monitorear el avance semanal de los dos MCIs generales, las medidas predictivas de cada área, los compromisos individuales y el score de cumplimiento por líder.
 
 ---
 
