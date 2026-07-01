@@ -7,10 +7,11 @@ let editUID = null;  // id del usuario en edición (modal)
 
 // ── Estado principal ───────────────────────────────────────────────────────
 let ST = {
-  usuarios: JSON.parse(JSON.stringify(UB)),
-  miembros: JSON.parse(JSON.stringify(MB)),
-  wigs:     JSON.parse(JSON.stringify(WB)),
-  semanas:  {}
+  usuarios:    JSON.parse(JSON.stringify(UB)),
+  miembros:    JSON.parse(JSON.stringify(MB)),
+  wigs:        JSON.parse(JSON.stringify(WB)),
+  mciTitulos:  { 1: 'Conservación de agentes', 2: 'Recluta de claves' },
+  semanas:     {}
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -80,13 +81,19 @@ async function loadState() {
   try {
     const res    = await fetch('/api/state');
     const parsed = await res.json();
-    if (parsed && parsed.usuarios) { ST = parsed; return; }
+    if (parsed && parsed.usuarios) { ST = parsed; _migrarST(); return; }
   } catch (_) {}
 
   // 2. Fallback: localStorage (modo offline o sin servidor)
   try {
     const raw    = localStorage.getItem('4dx-clickseguros-2026');
     const parsed = raw ? JSON.parse(raw) : null;
-    if (parsed && parsed.usuarios) ST = parsed;
+    if (parsed && parsed.usuarios) { ST = parsed; _migrarST(); }
   } catch (_) {}
+}
+
+function _migrarST() {
+  if (!ST.mciTitulos) {
+    ST.mciTitulos = { 1: 'Conservación de agentes', 2: 'Recluta de claves' };
+  }
 }

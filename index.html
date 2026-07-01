@@ -153,14 +153,48 @@
 <div class="mov" id="m-mci">
   <div class="modal">
     <h3>Nuevo MCI general</h3>
-    <div class="frow"><label>Título</label>              <input    id="mci-tit"  type="text"   placeholder="Nombre del MCI"></div>
-    <div class="frow"><label>Descripción</label>         <textarea id="mci-desc"               placeholder="Fórmula, base y meta"></textarea></div>
-    <div class="frow"><label>Valor inicio</label>        <input    id="mci-ini"  type="number" placeholder="0"></div>
-    <div class="frow"><label>Meta al 31 dic 2026</label> <input    id="mci-meta" type="number" placeholder="100"></div>
-    <div class="frow"><label>Unidad (%, claves…)</label> <input    id="mci-uni"  type="text"   placeholder="%"></div>
+    <div class="frow"><label>Título del MCI</label>          <input    id="mci-tit"  type="text"   autocomplete="off" placeholder="Ej. Conservación de agentes"></div>
+    <div class="frow"><label>Primer elemento / segmento</label><textarea id="mci-desc"              placeholder="Ej. Franquicias"></textarea></div>
+    <div class="frow"><label>Valor inicio</label>             <input    id="mci-ini"  type="number" placeholder="0"></div>
+    <div class="frow"><label>Meta al 31 dic 2026</label>      <input    id="mci-meta" type="number" placeholder="100"></div>
+    <div class="frow"><label>Unidad (%, claves…)</label>      <input    id="mci-uni"  type="text"   autocomplete="off" placeholder="%"></div>
     <div class="mbtns">
       <button type="button" class="bcancel"  onclick="closeModal('m-mci')">Cancelar</button>
       <button type="button" class="bconfirm" onclick="saveMCI()">Guardar MCI</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Nuevo MCI contributivo -->
+<div class="mov" id="m-contrib">
+  <div class="modal" style="width:560px">
+    <h3>Nuevo MCI contributivo</h3>
+    <div class="frow">
+      <label>Integrante</label>
+      <select id="mc-mid"></select>
+    </div>
+    <div class="frow">
+      <label>Nombre del MCI contributivo</label>
+      <input id="mc-nom" type="text" autocomplete="off" placeholder="Ej. De 61.55% a 70% conservación Promotorías">
+    </div>
+    <div class="frow">
+      <label>Medidas predictivas</label>
+      <div id="mc-preds-wrap">
+        <div class="predrow predrow-hdr">
+          <span class="waelbl" style="flex:1">Medida</span>
+          <span class="waelbl" style="width:60px">Meta</span>
+          <span class="waelbl" style="width:52px">Unidad</span>
+          <span class="waelbl" style="width:130px">MCI</span>
+          <span style="width:22px"></span>
+        </div>
+        <div id="mc-preds-rows"></div>
+      </div>
+      <button type="button" class="waeadd" style="margin-top:8px;font-size:11px;padding:4px 10px"
+        onclick="mcAddPredRow()">+ Agregar medida</button>
+    </div>
+    <div class="mbtns">
+      <button type="button" class="bcancel"  onclick="closeModal('m-contrib')">Cancelar</button>
+      <button type="button" class="bconfirm" onclick="saveContrib()">Guardar</button>
     </div>
   </div>
 </div>

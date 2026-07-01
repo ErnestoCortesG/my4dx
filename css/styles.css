@@ -186,6 +186,45 @@ table.ptbl tr:hover td{background:#fafaf8}
 .wanum{width:24px;height:24px;border-radius:50%;background:#1B3A6B;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
 .watit{font-size:13px;font-weight:600;color:#222}
 .wasub{font-size:10px;color:#aaa;margin-top:2px}
+/* ── MCI Admin gestión ── */
+.wagroup{border:1px solid #e0e0dc;border-radius:8px;margin-bottom:14px;overflow:hidden}
+.waghdr{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#f0f4fa;border-bottom:1px solid #dde3ee}
+.wagnum{font-size:11px;font-weight:700;color:#fff;background:#1B3A6B;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.wagtit-inp{flex:1;font-size:13px;font-weight:700;color:#1B3A6B;border:1px solid transparent;border-radius:5px;padding:3px 6px;background:transparent;outline:none}
+.wagtit-inp:hover{border-color:#c0cce0;background:#fff}
+.wagtit-inp:focus{border-color:#1B3A6B;background:#fff;box-shadow:0 0 0 2px #e3eaf6}
+.waeadd{margin-left:auto;font-size:11px;font-weight:700;padding:4px 10px;background:#1B3A6B;color:#fff;border:none;border-radius:5px;cursor:pointer;white-space:nowrap}
+.waeadd:hover{background:#0d2040}
+.waebody{padding:8px 10px;display:flex;flex-direction:column;gap:8px}
+.waerow{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;padding:8px 10px;background:#fafaf8;border:1px solid #eeecea;border-radius:6px;position:relative}
+.waerow:hover{border-color:#d0cdc8}
+.waefield{display:flex;flex-direction:column;gap:2px}
+.waefield-num{max-width:100px}
+.waefield-sub{flex:1;min-width:180px}
+.waelbl{font-size:10px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.3px}
+.waeinp{font-size:12px;padding:5px 7px;border:1px solid #d8d4ce;border-radius:5px;outline:none;color:#222;background:#fff;width:100%}
+.waeinp:focus{border-color:#1B3A6B;box-shadow:0 0 0 2px #e3eaf6}
+.waeinp-sm{max-width:60px}
+.waeuni{font-size:10px;color:#aaa;margin-top:2px}
+.waedel{position:absolute;top:6px;right:6px;background:none;border:none;font-size:15px;color:#ccc;cursor:pointer;line-height:1;padding:0 4px}
+.waedel:hover{color:#E8220A}
+/* ── MCI contributivos admin ── */
+.mcont-blk{border:1px solid #e8e4de;border-radius:7px;margin-bottom:12px;overflow:hidden}
+.mcont-hdr{display:flex;align-items:center;gap:10px;padding:9px 14px;background:#f7f6f3;border-bottom:1px solid #eeecea}
+.mcont-mci{padding:8px 14px;border-bottom:1px solid #f0ede8;display:flex;flex-direction:column;gap:4px}
+.mcont-preds-hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 14px 4px;background:#fafafa}
+.mcont-preds{padding:4px 10px 10px}
+.predrow{display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:1px solid #f5f3f0}
+.predrow:last-child{border-bottom:none}
+.predrow-hdr{padding-bottom:2px;border-bottom:1px solid #e0ddd8!important}
+.predinp{font-size:11px;padding:4px 6px;border:1px solid #d8d4ce;border-radius:4px;outline:none;color:#222;background:#fff}
+.predinp:focus{border-color:#1B3A6B;box-shadow:0 0 0 2px #e3eaf6}
+.predrow .predinp-lbl{flex:1;min-width:0;width:auto}
+.predrow .predinp-num{width:60px;flex-shrink:0}
+.predrow .predinp-uni{width:52px;flex-shrink:0}
+.predrow .predinp-mci{width:130px;flex-shrink:0;font-size:11px;padding:4px 4px}
+.preddel{background:none;border:none;font-size:14px;color:#ccc;cursor:pointer;flex-shrink:0;padding:0 3px;width:22px}
+.preddel:hover{color:#E8220A}
 .chip{background:#e3f2fd;color:#1565c0;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:600;display:inline-flex;align-items:center;gap:4px;margin:2px}
 .chip button{background:none;border:none;color:#1565c0;cursor:pointer;font-size:12px;line-height:1}
 .chip button:hover{color:#E8220A}

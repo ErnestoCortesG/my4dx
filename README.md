@@ -117,9 +117,10 @@ document.getElementById('app-shell').style.cssText    = 'display:flex!important;
 
 ```js
 ST = {
-  usuarios: [...],   // copia mutable de UB
-  miembros: [...],   // copia mutable de MB (con preds[])
-  wigs:     [...],   // copia mutable de WB
+  usuarios:   [...],            // copia mutable de UB
+  miembros:   [...],            // copia mutable de MB (con preds[])
+  wigs:       [...],            // copia mutable de WB
+  mciTitulos: { 1: '...', 2: '...' },  // títulos editables de MCIs generales
   semanas: {
     1: {
       wigs:  { cg: 55.36, fr: 53.57, pr: 61.55, cl: 591, cv: 28 },
@@ -131,6 +132,8 @@ ST = {
   }
 }
 ```
+
+`mciTitulos` se migra automáticamente al cargar un estado guardado que no lo tenga (`_migrarST()` en `state.js`). El `mciBloque()` en Tablero y las opciones del selector de MCI lo leen siempre desde aquí — sin texto hardcodeado.
 
 `getSem(n)` inicializa la semana si no existe, copiando los valores de inicio de los WIGs. Nunca devuelve `undefined`.
 
@@ -157,7 +160,7 @@ El match líder ↔ compromiso se hace por primer apellido (`lider.split(' ')[0]
 
 | Rol | Permisos |
 |-----|----------|
-| `admin` | Ver todo · Editar WIGs y predictivas · CRUD de compromisos de cualquier líder · CRUD de usuarios · Crear MCIs |
+| `admin` | Ver todo · CRUD de usuarios · Gestión completa de MCIs generales y contributivos · CRUD de compromisos de cualquier líder |
 | `integrante` | Ver todo · Agregar compromisos **solo para sí mismo** · Marcar cumplidos **solo sus propios** compromisos |
 | `visualizador` | Solo lectura — sin botones de edición |
 
@@ -337,6 +340,32 @@ Cuando un integrante agrega un compromiso (fila quick-add o modal "+ Nuevo"), el
 ---
 
 ## Historial de cambios
+
+### v1.5 — Gestión de MCIs en Administración (jul 2026)
+
+#### MCIs generales (nueva vista jerárquica)
+- Panel rediseñado: cada MCI muestra sus elementos/WIGs agrupados con campos editables inline: Elemento, Inicio, Meta, Unidad, Actual (semana activa) y Descripción
+- Título del MCI editable directamente desde el encabezado del grupo; se persiste en `ST.mciTitulos`
+- **+ Elemento** por grupo agrega un sub-elemento nuevo al MCI
+- **+ Nuevo MCI** (modal) crea un MCI completo con título y primer elemento
+- Eliminación de elementos individuales con botón ×
+- `mciTitulos` migrado automáticamente en estados guardados previos (`_migrarST`)
+
+#### MCIs contributivos por integrante (sección nueva)
+- Un bloque por cada integrante mostrando su MCI contributivo (texto editable) y sus medidas predictivas
+- Medidas editables inline: nombre, meta, unidad, MCI asignado (selector dinámico)
+- **+ Agregar medida** añade una fila por miembro
+- **+ Nuevo MCI contributivo** (modal): selecciona integrante, captura nombre del MCI y agrega medidas; las preds se suman a las existentes sin borrarlas
+- Selector de MCI en medidas derivado de `_mciOpts()` — incluye MCIs numerados + Soporte 4DX + Ambos MCIs + cualquier valor existente no reconocido
+
+#### Tablero MCI
+- Eliminados los campos "Actualizar…" y botones OK de las tarjetas de WIG — el valor actual ahora se gestiona exclusivamente desde Administración
+
+#### Técnico
+- `mciParaIntegrante()` ahora es completamente dinámico: deriva las opciones de `_mciOpts()` y detecta múltiples MCIs numerados para incluir "Ambos MCIs" automáticamente
+- Fix CSS: especificidad de `.predrow .predinp-*` corregida para que los anchos de columna no sean pisados por `.frow input { width:100% }`
+
+---
 
 ### v1.4 — Evidencia de compromisos + UX (jun 2026)
 - Campo de evidencia al palomear un compromiso: Guardar (deshabilita) + Editar (re-habilita)
