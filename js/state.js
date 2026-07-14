@@ -39,11 +39,20 @@ function defComps() {
  * @param {number} n - Número de semana (1–27)
  */
 function getSem(n) {
-  if (!ST.semanas[n]) ST.semanas[n] = { wigs:{}, preds:{}, comps: n === 1 ? defComps() : [] };
-  ST.wigs.forEach(w => {
-    if (ST.semanas[n].wigs[w.id] === undefined) ST.semanas[n].wigs[w.id] = w.inicio;
-  });
+  if (!ST.semanas[n]) ST.semanas[n] = { wigs:{}, wigSem:{}, preds:{}, comps: n === 1 ? defComps() : [] };
+  if (!ST.semanas[n].wigSem) ST.semanas[n].wigSem = {};
   return ST.semanas[n];
+}
+
+// Devuelve el valor acumulado más reciente de un WIG hasta la semana n,
+// buscando hacia atrás sin escribir — nunca bloquea el valor en ST.semanas.
+function getWigVal(n, wigId) {
+  for (let i = n; i >= 1; i--) {
+    const s = ST.semanas[i];
+    if (s && s.wigs[wigId] !== undefined) return s.wigs[wigId];
+  }
+  const w = ST.wigs.find(x => x.id === wigId);
+  return w ? w.inicio : 0;
 }
 
 // ── Persistencia ───────────────────────────────────────────────────────────
@@ -96,4 +105,26 @@ function _migrarST() {
   if (!ST.mciTitulos) {
     ST.mciTitulos = { 1: 'Conservación de agentes', 2: 'Recluta de claves' };
   }
+  // Migrar mciAlineados: copiar del seed MB para miembros que aún no lo tienen
+  ST.miembros.forEach(m => {
+    if (!m.mciAlineados) {
+      const seed = MB.find(x => x.id === m.id);
+      m.mciAlineados = seed?.mciAlineados ? [...seed.mciAlineados] : [];
+    }
+  });
+  // Migrar wigSem: garantizar que todas las semanas existentes tengan el campo
+  Object.values(ST.semanas || {}).forEach(s => {
+    if (!s.wigSem) s.wigSem = {};
+  });
+  // Limpiar wigs de semanas 2+ que no estén marcados como explícitos.
+  // Semana 1 se preserva intacta; semanas posteriores heredan vía getWigVal.
+  Object.entries(ST.semanas || {}).forEach(([n, s]) => {
+    if (parseInt(n) > 1) {
+      // Conservar solo valores marcados explícitamente por Admin
+      const exp = s.wigsExplicit || {};
+      Object.keys(s.wigs || {}).forEach(id => {
+        if (!exp[id]) delete s.wigs[id];
+      });
+    }
+  });
 }

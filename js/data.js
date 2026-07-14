@@ -1,14 +1,18 @@
-// ── Semanas (S1 = 29 jun, S13 = última con etiqueta) ──────────────────────
+// ── Semanas (S1 = 29 jun – S27 = 28–31 dic 2026) ──────────────────────────
 const SEMANAS = [
-  '', '29 jun–5 jul','6–12 jul','13–19 jul','20–26 jul',
-  '27 jul–2 ago','3–9 ago','10–16 ago','17–23 ago','24–30 ago',
-  '31 ago–6 sep','7–13 sep','14–20 sep','21–27 sep'
+  '',
+  '29 jun–5 jul', '6–12 jul',    '13–19 jul',   '20–26 jul',
+  '27 jul–2 ago', '3–9 ago',     '10–16 ago',   '17–23 ago',   '24–30 ago',
+  '31 ago–6 sep', '7–13 sep',    '14–20 sep',   '21–27 sep',
+  '28 sep–4 oct', '5–11 oct',    '12–18 oct',   '19–25 oct',   '26 oct–1 nov',
+  '2–8 nov',      '9–15 nov',    '16–22 nov',   '23–29 nov',
+  '30 nov–6 dic', '7–13 dic',    '14–20 dic',   '21–27 dic',   '28–31 dic'
 ];
 
 // ── Miembros ───────────────────────────────────────────────────────────────
 const MB = [
-  { id:'sully',    nombre:'Sully Mitrani',   cargo:'PMO · Ejecución 4DX',     ini:'SM', color:'#1B3A6B', tag:'Ambos MCIs',    tc:'ta',
-    mci:'De 0 a 100% de áreas con tablero 4DX actualizado.',
+  { id:'sully',    nombre:'Sully Mitrani',   cargo:'PMO · Ejecución 4DX',     ini:'SM', color:'#041224', tag:'Ambos MCIs',    tc:'ta',
+    mci:'De 0 a 100% de áreas con tablero 4DX actualizado.', mciAlineados:[],
     preds:[
       {id:'sp1', label:'Líderes con tablero antes mié 6pm',  meta:8,   uni:' líderes',    mci:'Soporte 4DX'},
       {id:'sp2', label:'Compromisos cerrados por área',       meta:100, uni:'%',            mci:'Soporte 4DX'},
@@ -16,7 +20,7 @@ const MB = [
     ]
   },
   { id:'ernesto',  nombre:'Ernesto Cortés',  cargo:'BI · Digital · Datos',    ini:'EC', color:'#1565c0', tag:'Ambos MCIs',    tc:'ta',
-    mci:'Sistema semanal de alertas al 100% agentes en riesgo al 31 jul.',
+    mci:'Sistema semanal de alertas al 100% agentes en riesgo al 31 jul.', mciAlineados:[1],
     preds:[
       {id:'ep1', label:'Agentes en riesgo identificados',     meta:100, uni:'%',            mci:'MCI 1 · Conservación'},
       {id:'ep2', label:'Tableros semanales funcionando',       meta:8,   uni:' áreas',       mci:'Soporte 4DX'},
@@ -24,7 +28,7 @@ const MB = [
     ]
   },
   { id:'zvi-r',    nombre:'Zvi Mitrani',     cargo:'Reclutamiento',           ini:'ZM', color:'#6a1b9a', tag:'Recluta',       tc:'tr',
-    mci:'De 157 altas a 540 claves nuevas. 35% con producción en 90 días.',
+    mci:'De 157 altas a 540 claves nuevas. 35% con producción en 90 días.', mciAlineados:[2],
     preds:[
       {id:'zp1', label:'Leads contactados <24h',              meta:90,  uni:'%',            mci:'MCI 2 · Recluta'},
       {id:'zp2', label:'Entrevistas calificadas semanales',   meta:10,  uni:' entrevistas', mci:'MCI 2 · Recluta'},
@@ -32,14 +36,14 @@ const MB = [
     ]
   },
   { id:'zvi-c',    nombre:'Zvi Mitrani',     cargo:'Capacitación',            ini:'ZM', color:'#2d6a4f', tag:'Ambos MCIs',    tc:'ta',
-    mci:'80% prom. y 60% franq. con inducción en 30 días al 30 sep.',
+    mci:'80% prom. y 60% franq. con inducción en 30 días al 30 sep.', mciAlineados:[2],
     preds:[
       {id:'cp1', label:'Agentes nuevos inducción 30d (prom.)',meta:80,  uni:'%',            mci:'MCI 2 · Recluta'},
       {id:'cp2', label:'Agentes nuevos inducción 30d (franq.)',meta:60, uni:'%',            mci:'MCI 2 · Recluta'}
     ]
   },
   { id:'leslie',   nombre:'Leslie Zetina',   cargo:'Gerencia de Embajadores', ini:'LZ', color:'#c62828', tag:'Recluta',       tc:'tr',
-    mci:'5–10 altas/mes por aseguradora. 35% con venta en 90 días.',
+    mci:'5–10 altas/mes por aseguradora. 35% con venta en 90 días.', mciAlineados:[2],
     preds:[
       {id:'lp1', label:'Prospectos por embajador (mín 15)',   meta:15,  uni:' prosp.',      mci:'MCI 2 · Recluta'},
       {id:'lp2', label:'Claves en proceso a emisión',         meta:10,  uni:' claves',      mci:'MCI 2 · Recluta'},
@@ -47,7 +51,7 @@ const MB = [
     ]
   },
   { id:'sandra',   nombre:'Sandra Martínez', cargo:'Promotorías',             ini:'SM', color:'#e65100', tag:'Conservación',  tc:'tc',
-    mci:'De 61.55% a 70% conservación Promotorías. Base: 627 · Meta: 439.',
+    mci:'De 61.55% a 70% conservación Promotorías. Base: 627 · Meta: 439.', mciAlineados:[1],
     preds:[
       {id:'sn1', label:'Renovaciones a vencer 45d identificadas', meta:100, uni:'%',       mci:'MCI 1 · Conservación'},
       {id:'sn2', label:'Agentes baja producción contactados',      meta:20,  uni:' agentes',mci:'MCI 1 · Conservación'},
@@ -55,7 +59,7 @@ const MB = [
     ]
   },
   { id:'maricruz', nombre:'Maricruz García', cargo:'Franquicias',             ini:'MG', color:'#37474f', tag:'Cons.+Recluta', tc:'ta',
-    mci:'De 53.57% a 70% conservación Franquicias + tablero por franquicia.',
+    mci:'De 53.57% a 70% conservación Franquicias + tablero por franquicia.', mciAlineados:[1],
     preds:[
       {id:'mg1', label:'Franquicias con agentes en riesgo',        meta:6,  uni:' franq.', mci:'MCI 1 · Conservación'},
       {id:'mg2', label:'Agentes con caída producción contactados', meta:30, uni:' agentes',mci:'MCI 1 · Conservación'},
@@ -63,7 +67,7 @@ const MB = [
     ]
   },
   { id:'nataly',   nombre:'Nataly Mora',     cargo:'Marketing',               ini:'NM', color:'#4a148c', tag:'Ambos MCIs',    tc:'ta',
-    mci:'Leads calificados semanales + campañas a agentes en riesgo.',
+    mci:'Leads calificados semanales + campañas a agentes en riesgo.', mciAlineados:[1,2],
     preds:[
       {id:'np1', label:'Leads calificados entregados a Recluta', meta:20, uni:' leads',   mci:'MCI 2 · Recluta'},
       {id:'np2', label:'Campañas a agentes en riesgo',           meta:1,  uni:' campaña', mci:'MCI 1 · Conservación'},
@@ -83,7 +87,7 @@ const WB = [
 
 // ── Usuarios base ─────────────────────────────────────────────────────────
 const UB = [
-  {id:'u1', username:'admin',      password:'admin123',  nombre:'Administrador',   rol:'admin',        color:'#E8220A', mid:null,     cargo:'Dirección'},
+  {id:'u1', username:'admin',      password:'admin123',  nombre:'Administrador',   rol:'admin',        color:'#E62800', mid:null,     cargo:'Dirección'},
   {id:'u2', username:'integrante', password:'click2026', nombre:'Sandra Martínez', rol:'integrante',   color:'#e65100', mid:'sandra', cargo:'Promotorías'},
   {id:'u3', username:'view',       password:'view2026',  nombre:'Visualizador',    rol:'visualizador', color:'#666',    mid:null,     cargo:'Consulta'}
 ];

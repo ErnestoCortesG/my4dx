@@ -18,3 +18,9 @@ desktop.ini
 # Archivos temporales
 *.tmp
 *.bak
+
+# Base de datos local (datos operativos, no versionar)
+4dx.db
+
+# Herramientas de diseño locales
+.impeccable/

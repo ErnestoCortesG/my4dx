@@ -9,8 +9,18 @@ function goPage(p, el) {
   renderAll();
 }
 
-function semAnterior()  { if (sem > 1)  { sem--; renderAll(); } }
-function semSiguiente() { if (sem < 27) { sem++; renderAll(); } }
+function flushPredInputs() {
+  if (pagina !== 'perfil') return;
+  document.querySelectorAll('#perfil-content .pinp').forEach(function(inp) {
+    var v = inp.value.trim();
+    if (v !== '' && inp.dataset.predId) {
+      getSem(sem).preds[inp.dataset.predId] = parseFloat(v);
+    }
+  });
+}
+
+function semAnterior()  { if (sem > 1)  { flushPredInputs(); sem--; renderAll(); } }
+function semSiguiente() { if (sem < 27) { flushPredInputs(); sem++; renderAll(); } }
 
 function selectM(id) {
   if (su?.rol === 'integrante' && su.mid && id !== 'todos' && id !== su.mid) {
@@ -19,14 +29,26 @@ function selectM(id) {
   mActivo = id;
   document.querySelectorAll('.mcard').forEach(x => x.classList.remove('active'));
   document.getElementById('card-' + id)?.classList.add('active');
+  if (id !== 'todos') {
+    // Navegar a página de perfil del integrante
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(x => x.classList.remove('active'));
+    document.getElementById('page-perfil').classList.add('active');
+    pagina = 'perfil';
+  }
   renderAll();
+}
+
+function volverTablero() {
+  goPage('tablero', document.getElementById('tab-tablero'));
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
 (async function init() {
   await loadState();
-  // cssText forzado para superar especificidad de selectores de ID en styles.css
-  document.getElementById('login-screen').style.cssText =
-    'display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1B3A6B,#0d2040)';
-  document.getElementById('app-shell').style.cssText = 'display:none';
+  // Arranca directamente en el app sin login screen
+  document.getElementById('app-shell').style.cssText = 'display:flex!important;flex-direction:column;height:100vh';
+  setupGuestRole();
+  setupDraggable();
+  renderAll();
 })();

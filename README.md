@@ -1,6 +1,6 @@
 # my4DX · ClickSeguros 2026
 
-Tablero de ejecución **4DX** (Las 4 Disciplinas de la Ejecución) para una Dirección Comercial . Permite monitorear el avance semanal de los dos MCIs generales, las medidas predictivas de cada área, los compromisos individuales y el score de cumplimiento por líder.
+Tablero de ejecución **4DX** (Las 4 Disciplinas de la Ejecución) para la Dirección Comercial de Click Seguros. Permite monitorear el avance semanal de los dos MCIs generales, las medidas predictivas de cada área, los compromisos individuales y el score de cumplimiento por líder.
 
 ---
 
@@ -36,11 +36,14 @@ python server.py 9000
 ├── index.html          # Esqueleto HTML + modales + carga de scripts
 ├── server.py           # Backend SQLite — sirve archivos estáticos + API REST
 ├── 4dx.db              # Base de datos SQLite (se crea al primer arranque)
+├── assets/
+│   ├── logo-click.svg      # Logo original (navy + rojo) — uso en fondos claros
+│   └── logo-click-neg.svg  # Logo versión negativa (blanco + rojo) — uso en navbar/fondos oscuros
 ├── css/
 │   └── styles.css      # Todos los estilos (sin frameworks)
 └── js/
     ├── data.js         # Datos base: SEMANAS, MB (miembros), WB (WIGs), UB (usuarios)
-    ├── state.js        # Estado global ST, getSem(), guardar(), loadState()
+    ├── state.js        # Estado global ST, getSem(), getWigVal(), guardar(), loadState()
     ├── auth.js         # login(), logout(), setupRole(), permisos
     ├── render.js       # Todas las funciones de render y modales
     └── app.js          # Navegación, selectM(), semAnterior/Siguiente(), init
@@ -76,12 +79,9 @@ Arranque
 Mutación (compromiso, usuario, MCI)
   └── guardar()   → POST /api/state (servidor)
                   → también escribe localStorage como respaldo
-
-WIGs y predictivas
-  └── botón Guardar → guardar() manual
 ```
 
-El frontend siempre trabaja contra el objeto `ST` en memoria. `guardar()` persiste ese objeto completo como JSON — tanto en SQLite como en localStorage. Si el servidor no está disponible, la app sigue funcionando en modo offline con localStorage.
+El frontend siempre trabaja contra el objeto `ST` en memoria. `guardar()` persiste ese objeto completo como JSON en SQLite y localStorage. Si el servidor no está disponible, la app sigue funcionando en modo offline.
 
 ### API del servidor
 
@@ -89,7 +89,7 @@ El frontend siempre trabaja contra el objeto `ST` en memoria. `guardar()` persis
 |--------|------|-------------|
 | `GET` | `/api/state` | Devuelve el estado completo como JSON |
 | `POST` | `/api/state` | Guarda el estado completo (upsert) |
-| `GET` | `/*` | Sirve archivos estáticos (index.html, css/, js/) |
+| `GET` | `/*` | Sirve archivos estáticos (index.html, css/, js/, assets/) |
 
 ### Esquema SQLite
 
@@ -101,49 +101,75 @@ CREATE TABLE app_state (
 );
 ```
 
-Una sola fila con el estado completo. Simple, sin migraciones, backup = copiar `4dx.db`.
+Una sola fila con el estado completo. Backup = copiar `4dx.db`.
 
 ### Pantallas y control de visibilidad
 
-El sistema tiene dos pantallas: `#login-screen` y `#app-shell`. La visibilidad se controla **exclusivamente desde JS** con `element.style.cssText` — no con `.classList`. Esto supera la especificidad de los selectores de ID en el CSS, evitando el bug donde el CSS pisaba los cambios de JS.
+El sistema tiene dos pantallas: `#login-screen` y `#app-shell`. La visibilidad se controla **exclusivamente desde JS** con `element.style.cssText` — no con `.classList`. Esto supera la especificidad de los selectores de ID en el CSS.
 
-```js
-// Login → App
-document.getElementById('login-screen').style.cssText = 'display:none!important';
-document.getElementById('app-shell').style.cssText    = 'display:flex!important;flex-direction:column;height:100vh';
-```
+---
 
-### Modelo de estado
+## Modelo de estado
 
 ```js
 ST = {
   usuarios:   [...],            // copia mutable de UB
   miembros:   [...],            // copia mutable de MB (con preds[])
-  wigs:       [...],            // copia mutable de WB
+  wigs:       [...],            // copia mutable de WB (con uniSem opcional)
   mciTitulos: { 1: '...', 2: '...' },  // títulos editables de MCIs generales
   semanas: {
     1: {
-      wigs:  { cg: 55.36, fr: 53.57, pr: 61.55, cl: 591, cv: 28 },
-      preds: { sp1: 6, ep1: 80, ... },
-      comps: [{ id, lider, mci, txt, done }, ...]
+      wigs:         { cg: 55.36, fr: 980, pr: 37, cl: 894, cv: 28 }, // valores explícitos Admin
+      wigsExplicit: { cg: true, fr: true, ... },                      // marca qué valores son explícitos
+      wigSem:       { cg: 1.2, fr: 25, ... },                         // avance semanal (independiente)
+      preds:        { sp1: 6, ep1: 80, ... },
+      comps:        [{ id, lider, mci, txt, done }, ...]
     },
-    2: { ... },
-    ...
+    2: {
+      wigs:         {},          // vacío → hereda de semana 1 vía getWigVal()
+      wigsExplicit: {},
+      wigSem:       {},          // avance semanal propio de esta semana
+      preds:        {},
+      comps:        []
+    }
   }
 }
 ```
 
-`mciTitulos` se migra automáticamente al cargar un estado guardado que no lo tenga (`_migrarST()` en `state.js`). El `mciBloque()` en Tablero y las opciones del selector de MCI lo leen siempre desde aquí — sin texto hardcodeado.
+### Acumulación de valores WIG
 
-`getSem(n)` inicializa la semana si no existe, copiando los valores de inicio de los WIGs. Nunca devuelve `undefined`.
+Los valores acumulados de los elementos MCI generales **se mantienen de semana en semana** a menos que Admin los cambie explícitamente. El mecanismo:
 
-### Semáforo
+- **`getWigVal(n, wigId)`** — lectura lazy: busca hacia atrás desde semana `n` hasta la primera semana que tenga el valor marcado como explícito. Si no encuentra ninguno, devuelve `w.inicio`.
+- **`saveWigActual(id, val)`** — escritura explícita desde Admin: guarda el valor en `ST.semanas[sem].wigs[id]` y marca `ST.semanas[sem].wigsExplicit[id] = true`.
+- **`getSem(n)`** — solo inicializa la estructura de la semana; **nunca** copia valores WIG de semanas anteriores.
+- **`_migrarST()`** — migración que limpia valores no explícitos de semanas 2+ al cargar el estado (elimina datos residuales de versiones anteriores).
 
-| Color | Condición sobre el avance `(actual - inicio) / (meta - inicio)` |
-|-------|------------------------------------------------------------------|
-| 🟢 Verde | Avance ≥ 70% |
-| 🟡 Amarillo | Avance 40–69% |
-| 🔴 Rojo | Avance < 40% |
+### Campos del WIG (`ST.wigs[]`)
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `id` | string | Clave única (`cg`, `fr`, `pr`, `cl`, `cv`) |
+| `label` | string | Nombre del elemento |
+| `inicio` | number | Valor de partida (base 2025) |
+| `meta` | number | Valor objetivo al 31 dic 2026 |
+| `uni` | string | Unidad de medida (`%`, ` claves`, etc.) |
+| `uniSem` | string? | Unidad para el avance semanal (override de `uni`; si null usa `uni`) |
+| `metaSem` | number? | Meta de avance semanal (si null se calcula como `(meta - inicio) / 27`) |
+| `mci` | number | MCI al que pertenece (1 o 2) |
+| `sub` | string | Descripción corta visible en el tablero |
+
+---
+
+## Sistema de semáforo
+
+### Umbrales (todos los semáforos de la app)
+
+| Color | Condición sobre el avance `(actual - inicio) / (meta - inicio) × 100` |
+|-------|------------------------------------------------------------------------|
+| Verde | Avance ≥ 100% |
+| Amarillo | Avance 50–99% |
+| Rojo | Avance < 50% |
 
 ### Score semanal
 
@@ -153,6 +179,19 @@ score_histórico      = promedio de todas las semanas con datos
 ```
 
 El match líder ↔ compromiso se hace por primer apellido (`lider.split(' ')[0]`) para tolerar nombres completos vs. cortos en datos legacy.
+
+---
+
+## Tablero MCI · Sección MCIs Generales
+
+Cada MCI general se muestra en un bloque con:
+
+- **Encabezado:** número, título, porcentaje promedio de avance de todos sus elementos y badge de semáforo
+- **Elementos:** una fila por WIG con:
+  - Valor acumulado actual → meta (con barra de progreso)
+  - Tira de avance semanal: valor de esa semana, barra de progreso semanal, meta semanal y badge de semáforo
+  - Fondo alternado entre elementos consecutivos para facilitar lectura
+  - Banner "AVANCE SEM. N" siempre en `--mid` (no cambia de color con el semáforo)
 
 ---
 
@@ -207,13 +246,13 @@ Los IDs de predictivas (`sp1`, `ep1`, `zp1`, etc.) son estables — son las clav
 
 ## Semanas
 
-Las semanas van de **S1 (29 jun 2026) a S27 (31 dic 2026)**. Solo S1–S13 tienen etiqueta de fechas en el array `SEMANAS`; las semanas S14–S27 muestran solo el número.
+Las semanas van de **S1 (29 jun 2026) a S27 (31 dic 2026)**. El array `SEMANAS` en `data.js` indexa en base 1; el índice 0 es un string vacío.
 
 ---
 
 ## Operación y mantenimiento
 
-### Levantar el servidor (manual)
+### Levantar el servidor
 
 ```bash
 cd "C:\ruta\a\4dx-clickseguros"
@@ -224,8 +263,6 @@ El servidor queda corriendo en la terminal. Cerrar la terminal detiene el servid
 
 ### Backup
 
-Copiar el archivo `4dx.db` es suficiente para respaldar todos los datos:
-
 ```bash
 copy 4dx.db  4dx-backup-YYYYMMDD.db
 ```
@@ -234,7 +271,7 @@ copy 4dx.db  4dx-backup-YYYYMMDD.db
 
 Detener el servidor, reemplazar `4dx.db` por el backup, reiniciar el servidor.
 
-### Ver los datos en SQLite (opcional)
+### Ver los datos en SQLite
 
 Con cualquier cliente SQLite (DB Browser for SQLite, DBeaver, etc.):
 
@@ -242,11 +279,11 @@ Con cualquier cliente SQLite (DB Browser for SQLite, DBeaver, etc.):
 SELECT updated_at, json_extract(data, '$.semanas') FROM app_state;
 ```
 
-### Limpiar el estado (reset de fábrica)
+### Reset de fábrica
 
 ```bash
 del 4dx.db
-python server.py   -- crea una nueva 4dx.db vacía
+python server.py
 ```
 
 Al primer `guardar()` desde la app se re-inicializa con los datos de fábrica de `data.js`.
@@ -255,13 +292,13 @@ Al primer `guardar()` desde la app se re-inicializa con los datos de fábrica de
 
 ## Despliegue en red local
 
-1. Anotar la IP de la máquina que correrá el servidor:
+1. Anotar la IP de la máquina servidora:
    ```bash
    ipconfig   # buscar IPv4 Address, ej. 192.168.1.50
    ```
-2. Arrancar el servidor: `python server.py`
-3. Compartir la URL con el equipo: `http://192.168.1.50:8000`
-4. Asegurarse de que el firewall de Windows permite el puerto 8000:
+2. Arrancar: `python server.py`
+3. Compartir con el equipo: `http://192.168.1.50:8000`
+4. Permitir el puerto en el firewall:
    ```powershell
    netsh advfirewall firewall add rule name="my4DX" dir=in action=allow protocol=TCP localport=8000
    ```
@@ -284,117 +321,112 @@ Al primer `guardar()` desde la app se re-inicializa con los datos de fábrica de
 
 ## Tablero MCI · Medidas predictivas por integrante
 
-La sección **Medidas predictivas por integrante** muestra un bloque por cada líder con tres capas de información:
+La sección muestra un bloque por cada líder con:
 
-### Encabezado del bloque
+- **Encabezado:** nombre, área, score general de predictivas y semáforo
+- **Banda MCI CONTRIBUTIVO:** texto del MCI al que contribuye
+- **Tabla de predictivas:** con valor, meta, avance (%) y semáforo por fila
 
-```
-SULLY MITRANI · PMO · EJECUCIÓN 4DX    🟡 63%
-```
-
-- Nombre, área y rol del integrante
-- Score general de predictivas: promedio del avance `(valor_actual / meta × 100)` de todas las medidas con dato capturado
-- Semáforo global: 🟢 ≥ 80% · 🟡 50–79% · 🔴 < 50% · — sin datos
-
-### Banda MCI CONTRIBUTIVO
-
-Franja gris debajo del encabezado con el texto descriptivo del MCI al que contribuye el integrante (campo `mci` en `MB`).
-
-### Tabla de medidas predictivas
-
-| # | Medida | Meta | Valor sem. N | Avance | Semáforo |
-|---|--------|------|-------------|--------|----------|
-| 1 | Descripción | 100% | 60% | 60% | 🟡 |
-
-- **Semáforo por fila:** calculado como `Math.min(100, Math.round(valor / meta × 100))`; mismos umbrales que el global
-- **Sin dato** (campo vacío): muestra `—` en la columna de semáforo y no se incluye en el promedio global
+El score es el promedio acumulado de todas las semanas con datos (`predScoreAcum()`). Filas sin dato no afectan el promedio.
 
 ---
 
 ## Compromisos · Evidencia de cumplimiento
 
-Al palomear un compromiso, aparece debajo del texto un campo de evidencia con dos botones:
+Al palomear un compromiso aparece un campo de evidencia con:
 
-- **Guardar** — persiste la descripción en SQLite + localStorage y deshabilita el campo
-- **Editar** — re-habilita el campo para corregir o ampliar la evidencia
+- **Guardar** — persiste en SQLite + localStorage y deshabilita el campo
+- **Editar** — re-habilita el campo para corregir
 
-Un usuario sin permisos de edición ve la evidencia en modo solo lectura (franja verde con "Prueba: …").
-
----
-
-## Integrantes · MCIs disponibles al agregar compromiso
-
-Cuando un integrante agrega un compromiso (fila quick-add o modal "+ Nuevo"), el selector de MCI solo muestra los grupos a los que realmente contribuye, derivados de los valores únicos de `preds[].mci` de su miembro asociado.
-
-| Integrante | MCIs disponibles |
-|---|---|
-| Sully Mitrani | Soporte 4DX |
-| Ernesto Cortés | MCI 1 · Conservación · Soporte 4DX · Ambos MCIs |
-| Zvi Mitrani (Reclutamiento) | MCI 2 · Recluta |
-| Zvi Mitrani (Capacitación) | MCI 2 · Recluta |
-| Leslie Zetina | MCI 2 · Recluta |
-| Sandra Martínez | MCI 1 · Conservación |
-| Maricruz García | MCI 1 · Conservación |
-| Nataly Mora | MCI 2 · Recluta |
+Un usuario sin permisos ve la evidencia en modo solo lectura.
 
 ---
 
 ## Historial de cambios
 
+### v1.8 — WIGs acumulativos + ajustes de semáforo + UI (jul 2026)
+
+#### Acumulación de valores WIG
+
+- **`getWigVal(n, wigId)`:** nueva función de lectura lazy — busca hacia atrás sin escribir en el estado. Reemplaza todos los accesos directos a `ST.semanas[n].wigs[id]` en cálculos de avance.
+- **`getSem(n)`** simplificado: ya no inicializa valores WIG desde `w.inicio`; solo crea la estructura de la semana.
+- **`wigsExplicit`:** nuevo mapa por semana que marca qué valores fueron guardados explícitamente desde Admin. `saveWigActual()` lo escribe; `getWigVal()` lo lee para filtrar herencia legítima.
+- **`_migrarST()`** ampliado: limpia wigs no explícitos de semanas 2+ al cargar, eliminando valores residuales de la versión anterior que bloqueaban la herencia.
+
+#### Semáforos
+
+- Umbrales unificados en toda la app: **Verde ≥ 100%, Amarillo 50–99%, Rojo < 50%** (antes: 80/70/40).
+- Tarjeta "Compromisos sem." en Tablero MCI ahora muestra `border-top` con color de semáforo.
+
+#### Tablero MCI · Sección MCIs Generales
+
+- **Porcentaje promedio por bloque MCI:** se eliminó el % por elemento individual; el encabezado del bloque muestra el promedio de avance de todos sus elementos (`.mci-avg`).
+- **Tira de avance semanal** (`AVANCE SEM. N`): banner siempre en `--mid` (color fijo, no cambia con el semáforo).
+- **Unidad de avance semanal (`uniSem`):** campo nuevo en cada WIG en Admin — permite definir una unidad diferente para el avance semanal vs. el acumulado.
+- **Símbolo `%` omitido** en valor y meta del avance semanal cuando la unidad es `%`.
+- **Fondos alternados** en elementos MCI: `nth-child(even)` con `rgba(5,23,46,.06)` + línea divisoria `2px solid --mid` entre pares de elementos.
+
+#### Identidad visual
+
+- **Logo versión negativa:** creado `assets/logo-click-neg.svg` (elementos navy → blanco, "C" roja conservada) para uso en el navbar oscuro, siguiendo el manual de marca (versión negativa, pág. 17).
+- **CSS limpiado:** eliminado `filter: brightness(0) invert(1)` en `.brand-logo-img`; ahora se usa directamente el SVG correcto.
+
+---
+
+### v1.7 — Animaciones y polish (jul 2026)
+
+#### Animaciones
+- **Login box:** entrada con `translateY(22px) → 0` + opacidad, `.55s ease-out-expo`
+- **Cambio de módulo:** `pageFadeIn` con 8px + opacidad, `.25s ease-out-expo`
+- **Barras de progreso:** `@starting-style { scaleX(0) }` → crecen desde cero al renderizar con stagger (`.04s–.25s`), easing expo `.55s`
+- **Modal:** backdrop con `transition-behavior: allow-discrete`; modal interior `scale(0.96 → 1)` `.28s ease-out-expo`
+- **Tab activo:** `border-bottom-color .2s ease-out-quart`
+- **Tokens de easing:** `--ease-out-expo` y `--ease-out-quart` en `:root`
+
+#### Polish
+- Emoji eliminados de todos los semáforos — el color lo dan exclusivamente las clases CSS
+- Colores hardcodeados → tokens CSS: `#aaa`, `#bbb`, `#888` reemplazados por `var(--text-3/4)`
+- Rojo unificado a `#E02500` (`var(--cta)`)
+
+---
+
+### v1.6 — Rediseño visual + accesibilidad (jul 2026)
+
+- Reescritura completa de `styles.css` con design tokens en `:root`
+- Tipografía Lato con `<link rel="preconnect">` (no `@import`)
+- WCAG AA garantizado en todos los tokens de texto
+- Focus ring global, roles ARIA en tabs y tarjetas
+- Barras de progreso GPU-composited (`transform:scaleX` vs `width`)
+- Side-stripes eliminados; responsive con breakpoints 900px y 768px
+
+---
+
 ### v1.5 — Gestión de MCIs en Administración (jul 2026)
 
-#### MCIs generales (nueva vista jerárquica)
-- Panel rediseñado: cada MCI muestra sus elementos/WIGs agrupados con campos editables inline: Elemento, Inicio, Meta, Unidad, Actual (semana activa) y Descripción
-- Título del MCI editable directamente desde el encabezado del grupo; se persiste en `ST.mciTitulos`
-- **+ Elemento** por grupo agrega un sub-elemento nuevo al MCI
-- **+ Nuevo MCI** (modal) crea un MCI completo con título y primer elemento
-- Eliminación de elementos individuales con botón ×
-- `mciTitulos` migrado automáticamente en estados guardados previos (`_migrarST`)
-
-#### MCIs contributivos por integrante (sección nueva)
-- Un bloque por cada integrante mostrando su MCI contributivo (texto editable) y sus medidas predictivas
-- Medidas editables inline: nombre, meta, unidad, MCI asignado (selector dinámico)
-- **+ Agregar medida** añade una fila por miembro
-- **+ Nuevo MCI contributivo** (modal): selecciona integrante, captura nombre del MCI y agrega medidas; las preds se suman a las existentes sin borrarlas
-- Selector de MCI en medidas derivado de `_mciOpts()` — incluye MCIs numerados + Soporte 4DX + Ambos MCIs + cualquier valor existente no reconocido
-
-#### Tablero MCI
-- Eliminados los campos "Actualizar…" y botones OK de las tarjetas de WIG — el valor actual ahora se gestiona exclusivamente desde Administración
-
-#### Técnico
-- `mciParaIntegrante()` ahora es completamente dinámico: deriva las opciones de `_mciOpts()` y detecta múltiples MCIs numerados para incluir "Ambos MCIs" automáticamente
-- Fix CSS: especificidad de `.predrow .predinp-*` corregida para que los anchos de columna no sean pisados por `.frow input { width:100% }`
+- Panel jerárquico de MCIs generales: campos editables inline (label, inicio, meta, unidad, actual, descripción)
+- Título del MCI editable; `ST.mciTitulos` con migración automática
+- MCIs contributivos por integrante: texto editable + CRUD de medidas predictivas
+- `mciParaIntegrante()` y `_mciOpts()` completamente dinámicos
 
 ---
 
 ### v1.4 — Evidencia de compromisos + UX (jun 2026)
-- Campo de evidencia al palomear un compromiso: Guardar (deshabilita) + Editar (re-habilita)
-- Cache-busting en `server.py`: timestamp de arranque inyectado en URLs de JS/CSS → el navegador siempre descarga versión fresca al reiniciar el servidor
-- Selector de MCI filtrado para integrantes: solo ven los grupos a los que contribuyen
-- Fix: todos los botones de modales tienen `type="button"` → evita prompt de guardar credenciales del navegador
-- Fix: modal de usuario con `autocomplete="off"` en todos los campos de texto
+- Campo de evidencia al palomear un compromiso
+- Cache-busting por timestamp de arranque del servidor
+- Selector de MCI filtrado para integrantes
 
 ### v1.3 — Predictivas por integrante (jun 2026)
-- Encabezado de bloque muestra score general (🟢/🟡/🔴 + %) por integrante
-- Banda **MCI CONTRIBUTIVO** entre encabezado y tabla de predictivas
-- Nueva columna **Semáforo** en la tabla de medidas predictivas (por fila)
-- Filas sin dato no afectan el promedio global del integrante
+- Score general y semáforo por integrante en encabezado de bloque
+- Banda MCI CONTRIBUTIVO + semáforo por fila de predictiva
 
 ### v1.2 — Backend SQLite (jun 2026)
-- Agregado `server.py`: Python stdlib, sirve archivos estáticos + API `/api/state`
-- Base de datos `4dx.db` (SQLite) como fuente de verdad compartida entre usuarios
+- `server.py`: Python stdlib, API `/api/state`, persistencia compartida
 - `loadState()` y `guardar()` migrados a `fetch` async con fallback a localStorage
-- `init()` en `app.js` convertido a `async` para aguardar `loadState()`
-- Auto-guardado en todas las mutaciones: compromisos, usuarios, MCIs
-- WIGs y predictivas siguen usando botón Guardar manual
 
 ### v1.1 — Módulos (jun 2026)
-- Separado de archivo único `4dx-clickseguros-app.html` a estructura modular
-- Migrado `window.storage` (Claude Artifacts) a `localStorage`
-- Corregido bug de semáforo: template literal `'avg>=40?🟡'` era string, no ternario
-- `init` convertido de `async` a síncrono
+- Separado de archivo único a estructura modular
+- Migrado `window.storage` a `localStorage`
 
 ### v1.0 — Archivo único (jun 2026)
 - Versión inicial en `4dx-clickseguros-app.html`
-- Login con `style.cssText` para superar especificidad CSS
 - 8 líderes, 2 MCIs, 3 roles, persistencia localStorage

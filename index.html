@@ -4,49 +4,39 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>my4DX · ClickSeguros 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 
-<!-- LOGIN -->
-<div id="login-screen" class="screen">
-  <div class="login-box">
-    <div class="login-logo">my<em>4DX</em></div>
-    <div class="login-sub">ClickSeguros · Dirección Comercial 2026</div>
-    <div class="login-field">
-      <label>Usuario</label>
-      <input id="l-user" type="text" placeholder="usuario" onkeydown="if(event.key==='Enter')login()">
-    </div>
-    <div class="login-field">
-      <label>Contraseña</label>
-      <input id="l-pass" type="password" placeholder="••••••" onkeydown="if(event.key==='Enter')login()">
-    </div>
-    <div class="login-err" id="l-err"></div>
-    <button class="btn-login" onclick="login()">Entrar</button>
-    <div class="login-hint">Demo: admin/admin123 · integrante/click2026 · view/view2026</div>
-  </div>
-</div>
-
 <!-- APP -->
 <div id="app-shell" class="screen">
   <div class="topnav">
-    <div class="brand">my<em>4DX</em> <span style="font-size:10px;font-weight:400;opacity:.6;margin-left:4px">ClickSeguros 2026</span></div>
-    <div class="nav-tab active" id="tab-tablero"      onclick="goPage('tablero',this)">Tablero MCI</div>
-    <div class="nav-tab"        id="tab-compromisos"  onclick="goPage('compromisos',this)">Compromisos</div>
-    <div class="nav-tab"        id="tab-scores"       onclick="goPage('scores',this)">Scores</div>
-    <div class="nav-tab"        id="tab-admin"        onclick="goPage('admin',this)" style="display:none">Administración</div>
+    <div class="brand">
+      <img class="brand-logo-img" src="assets/logo-click-neg.svg" alt="Click Seguros">
+      <span class="brand-app">my4DX · 2026</span>
+    </div>
+    <div class="nav-tab active" id="tab-tablero"     tabindex="0" role="tab" aria-selected="true"  onclick="goPage('tablero',this)"     onkeydown="if(event.key==='Enter'||event.key===' '){goPage('tablero',this);event.preventDefault()}">Tablero MCI</div>
+    <div class="nav-tab"        id="tab-compromisos" tabindex="0" role="tab" aria-selected="false" onclick="goPage('compromisos',this)" onkeydown="if(event.key==='Enter'||event.key===' '){goPage('compromisos',this);event.preventDefault()}">Compromisos</div>
+    <div class="nav-tab"        id="tab-scores"      tabindex="0" role="tab" aria-selected="false" onclick="goPage('scores',this)"      onkeydown="if(event.key==='Enter'||event.key===' '){goPage('scores',this);event.preventDefault()}">Scores</div>
+    <div class="nav-tab"        id="tab-admin"       tabindex="0" role="tab" aria-selected="false" onclick="goPage('admin',this)"       onkeydown="if(event.key==='Enter'||event.key===' '){goPage('admin',this);event.preventDefault()}"  style="display:none">Administración</div>
     <div class="nav-right">
       <button class="btn-nav" onclick="semAnterior()">◀</button>
       <span class="week-display" id="wlbl">Sem 1</span>
       <button class="btn-nav" onclick="semSiguiente()">▶</button>
       <button class="btn-save" id="bsave" onclick="guardar()" style="display:none">Guardar</button>
-      <div class="user-pill" onclick="logout()">
-        <div class="upav" id="nav-av">A</div>
-        <div>
-          <div class="uname" id="nav-un">Admin</div>
-          <div class="urole" id="nav-ur">Administrador</div>
+      <button class="btn-login-nav" id="btn-login-nav" onclick="openLoginModal()">Iniciar sesión</button>
+      <div id="user-pill-wrap" style="display:none">
+        <div class="user-pill" onclick="logout()">
+          <div class="upav" id="nav-av">A</div>
+          <div>
+            <div class="uname" id="nav-un">Admin</div>
+            <div class="urole" id="nav-ur">Administrador</div>
+          </div>
+          <span style="color:rgba(255,255,255,.4);font-size:10px;margin-left:2px">✕</span>
         </div>
-        <span style="color:rgba(255,255,255,.4);font-size:10px;margin-left:2px">✕</span>
       </div>
     </div>
   </div>
@@ -58,7 +48,7 @@
       <div class="sb-divider"></div>
       <div class="sb-team-hdr">Vista general</div>
       <div class="mcard active" id="card-todos" onclick="selectM('todos')">
-        <div class="mav" style="background:#E8220A;font-size:10px;width:30px;height:30px">ALL</div>
+        <div class="mav" style="background:#E62800;font-size:10px;width:30px;height:30px">ALL</div>
         <div class="minfo">
           <div class="mname" style="font-size:10px">Todos</div>
           <div class="mcargo">Dir. Comercial</div>
@@ -89,6 +79,9 @@
       <div id="page-admin" class="page">
         <div class="wbar"><h2>Panel de administración</h2></div>
         <div class="agrid" id="apanel"></div>
+      </div>
+      <div id="page-perfil" class="page">
+        <div id="perfil-content"></div>
       </div>
     </div>
   </div>
@@ -150,7 +143,7 @@
 </div>
 
 <!-- MODAL: Nuevo MCI -->
-<div class="mov" id="m-mci">
+<div class="mov" id="m-nuevomci">
   <div class="modal">
     <h3>Nuevo MCI general</h3>
     <div class="frow"><label>Título del MCI</label>          <input    id="mci-tit"  type="text"   autocomplete="off" placeholder="Ej. Conservación de agentes"></div>
@@ -159,7 +152,7 @@
     <div class="frow"><label>Meta al 31 dic 2026</label>      <input    id="mci-meta" type="number" placeholder="100"></div>
     <div class="frow"><label>Unidad (%, claves…)</label>      <input    id="mci-uni"  type="text"   autocomplete="off" placeholder="%"></div>
     <div class="mbtns">
-      <button type="button" class="bcancel"  onclick="closeModal('m-mci')">Cancelar</button>
+      <button type="button" class="bcancel"  onclick="closeModal('m-nuevomci')">Cancelar</button>
       <button type="button" class="bconfirm" onclick="saveMCI()">Guardar MCI</button>
     </div>
   </div>
@@ -178,13 +171,16 @@
       <input id="mc-nom" type="text" autocomplete="off" placeholder="Ej. De 61.55% a 70% conservación Promotorías">
     </div>
     <div class="frow">
+      <label>Alineado a MCI general</label>
+      <div id="mc-mci-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+    </div>
+    <div class="frow">
       <label>Medidas predictivas</label>
       <div id="mc-preds-wrap">
         <div class="predrow predrow-hdr">
           <span class="waelbl" style="flex:1">Medida</span>
           <span class="waelbl" style="width:60px">Meta</span>
           <span class="waelbl" style="width:52px">Unidad</span>
-          <span class="waelbl" style="width:130px">MCI</span>
           <span style="width:22px"></span>
         </div>
         <div id="mc-preds-rows"></div>
@@ -196,6 +192,29 @@
       <button type="button" class="bcancel"  onclick="closeModal('m-contrib')">Cancelar</button>
       <button type="button" class="bconfirm" onclick="saveContrib()">Guardar</button>
     </div>
+  </div>
+</div>
+
+<!-- MODAL: Login -->
+<div class="mov" id="m-login">
+  <div class="modal" style="width:360px;max-width:95vw">
+    <div class="login-logo-wrap" style="margin-bottom:16px">
+      <img class="login-logo-img" src="assets/logo-click.svg" alt="Click Seguros" style="height:32px;filter:none">
+    </div>
+    <div class="login-sub" style="margin-bottom:20px">Dirección Comercial · my4DX 2026</div>
+    <div class="login-field">
+      <label>Usuario</label>
+      <input id="ml-user" type="text" autocomplete="username" placeholder="usuario"
+        onkeydown="if(event.key==='Enter')loginFromModal()">
+    </div>
+    <div class="login-field">
+      <label>Contraseña</label>
+      <input id="ml-pass" type="password" autocomplete="current-password" placeholder="••••••"
+        onkeydown="if(event.key==='Enter')loginFromModal()">
+    </div>
+    <div class="login-err" id="ml-err"></div>
+    <button class="btn-login" onclick="loginFromModal()">Entrar</button>
+    <button type="button" class="bcancel" style="width:100%;margin-top:8px" onclick="closeModal('m-login')">Cancelar</button>
   </div>
 </div>
 
