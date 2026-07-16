@@ -24,17 +24,33 @@ from urllib.parse import urlparse
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
-PORT    = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get('PORT', 8000))
+def _port_from_args():
+    """Puerto desde argv[1] o $PORT (8000 por defecto). Tolerante al importar
+    el módulo desde pruebas (ignora argumentos que no sean un puerto)."""
+    if len(sys.argv) > 1:
+        try:
+            return int(sys.argv[1])
+        except ValueError:
+            pass
+    return int(os.environ.get('PORT', 8000))
+
+PORT    = _port_from_args()
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '4dx.db')
+
+# Orígenes permitidos para CORS (peticiones cross-origin). Vacío por defecto =
+# solo mismo origen (recomendado: server.py sirve el frontend y la API juntos).
+# Para permitir un frontend en otro dominio/puerto, exporta CORS_ORIGINS con una
+# lista separada por comas, p. ej.:  CORS_ORIGINS="https://4dx.miempresa.com"
+ALLOWED_ORIGINS = [o.strip() for o in os.environ.get('CORS_ORIGINS', '').split(',') if o.strip()]
 
 # Timestamp de arranque — cambia cada vez que el servidor se reinicia.
 # Se inyecta como ?v=TIMESTAMP en los <script> y <link> de index.html
 # para que el navegador trate cada arranque como versión nueva (cache-busting).
 START_TS = str(int(time.time()))
 
-# Sesiones activas en memoria: token → {username, rol, id, exp}.
-# Se limpian al reiniciar el servidor (los usuarios deben volver a entrar).
-SESSIONS      = {}
+# Las sesiones se persisten en la tabla `sessions` (ver init_db), así sobreviven
+# a reinicios del servidor: los usuarios no tienen que volver a entrar tras una
+# actualización o reinicio de la máquina.
 SESSION_TTL   = 12 * 3600   # 12 horas
 PBKDF2_ROUNDS = 100_000
 
@@ -104,6 +120,17 @@ def init_db():
             updated_at TEXT    DEFAULT (datetime('now'))
         )
     ''')
+    # Sesiones persistentes: sobreviven reinicios del servidor.
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS sessions (
+            token    TEXT PRIMARY KEY,
+            username TEXT,
+            rol      TEXT,
+            uid      TEXT,
+            exp      REAL NOT NULL
+        )
+    ''')
+    conn.execute('DELETE FROM sessions WHERE exp < ?', (time.time(),))  # barrer expiradas
     # Sembrar usuarios solo si la tabla está vacía
     n = conn.execute('SELECT COUNT(*) AS c FROM users').fetchone()['c']
     if n == 0:
@@ -152,24 +179,43 @@ def _migrar_blob_a_docs(conn):
 # ── Sesiones ───────────────────────────────────────────────────────────────────
 
 def new_session(row):
-    """Crea un token para el usuario (row de la tabla users) y lo registra."""
+    """Crea un token para el usuario y lo persiste en la tabla sessions."""
     token = secrets.token_urlsafe(32)
-    SESSIONS[token] = {
-        'username': row['username'], 'rol': row['rol'],
-        'id': row['id'], 'exp': time.time() + SESSION_TTL,
-    }
+    conn = get_db()
+    conn.execute('INSERT INTO sessions (token, username, rol, uid, exp) VALUES (?,?,?,?,?)',
+                 (token, row['username'], row['rol'], row['id'], time.time() + SESSION_TTL))
+    conn.commit()
+    conn.close()
     return token
 
 
 def session_for(token):
-    """Devuelve la sesión válida del token, o None si no existe o expiró."""
-    s = SESSIONS.get(token)
-    if not s:
+    """Devuelve la sesión válida del token, o None si no existe o expiró.
+    Lee de la tabla sessions (persistente entre reinicios)."""
+    if not token:
         return None
-    if s['exp'] < time.time():
-        SESSIONS.pop(token, None)
+    conn = get_db()
+    row = conn.execute('SELECT * FROM sessions WHERE token = ?', (token,)).fetchone()
+    if not row:
+        conn.close()
         return None
-    return s
+    if row['exp'] < time.time():
+        conn.execute('DELETE FROM sessions WHERE token = ?', (token,))
+        conn.commit()
+        conn.close()
+        return None
+    conn.close()
+    return {'username': row['username'], 'rol': row['rol'], 'id': row['uid'], 'exp': row['exp']}
+
+
+def end_session(token):
+    """Elimina una sesión (logout)."""
+    if not token:
+        return
+    conn = get_db()
+    conn.execute('DELETE FROM sessions WHERE token = ?', (token,))
+    conn.commit()
+    conn.close()
 
 
 def user_public(row):
@@ -230,6 +276,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
+        # Leer (drenar) el cuerpo SIEMPRE, antes de rutear. Si un handler rechaza
+        # (401/403/400) sin consumir el body, la conexión puede romperse y el
+        # cliente ver una respuesta truncada. Consumirlo aquí lo evita.
+        length = int(self.headers.get('Content-Length', 0) or 0)
+        self._raw_body = self.rfile.read(length) if length else b''
         path = urlparse(self.path).path
         if path == '/api/state':
             self._post_state()
@@ -255,10 +306,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return session_for(token)
 
     def _body_json(self):
-        """Lee y parsea el cuerpo JSON; devuelve None si es inválido."""
-        length = int(self.headers.get('Content-Length', 0))
+        """Parsea el cuerpo JSON ya leído en do_POST; devuelve None si es inválido."""
+        if not getattr(self, '_raw_body', b''):
+            return None
         try:
-            return json.loads(self.rfile.read(length))
+            return json.loads(self._raw_body)
         except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
             return None
 
@@ -280,7 +332,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def _post_logout(self):
         hdr = self.headers.get('Authorization', '')
         token = hdr[7:] if hdr.startswith('Bearer ') else ''
-        SESSIONS.pop(token, None)
+        end_session(token)
         self._json_ok(b'{"ok":true}')
 
     def _get_session(self):
@@ -469,7 +521,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _cors(self):
-        self.send_header('Access-Control-Allow-Origin',  '*')
+        # Solo se emite Access-Control-Allow-Origin si el Origin de la petición
+        # está en la allowlist. Sin allowlist, no se emite → mismo origen sigue
+        # funcionando y cross-origin queda bloqueado por el navegador.
+        origin = self.headers.get('Origin')
+        if origin and origin in ALLOWED_ORIGINS:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 

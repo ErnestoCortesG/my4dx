@@ -49,20 +49,48 @@ python server.py 9000
     ├── render-tablero.js      # Vista Tablero MCI (WIGs + gráfico racetrack)
     ├── render-compromisos.js  # Vista Compromisos
     ├── render-scores.js       # Vista Scores
-    ├── render-admin.js        # Módulo Administración (usuarios, MCIs, contributivos)
+    ├── render-admin.js            # Administración: orquestador renderAdmin()
+    ├── render-admin-usuarios.js   #   · sección Usuarios + CRUD
+    ├── render-admin-mcis.js       #   · sección MCIs generales (WIGs) + edición
+    ├── render-admin-contrib.js    #   · sección MCIs contributivos + medidas
     ├── render-perfil.js       # Vista Perfil de integrante
     └── app.js                 # Navegación, selectM(), semAnterior/Siguiente(), init
+└── tests/
+    ├── test_server.py    # Pruebas del backend (unittest): auth, hash, /api/doc, migración
+    ├── test_client.mjs   # Pruebas de helpers de cliente (node:test): esc(), getWigVal()
+    └── run.py            # Corre ambas suites y reporta un resultado unificado
 ```
 
 ### Orden de carga de scripts
 
 ```
 data.js → state.js → auth.js →
-  render-core → render-tablero → render-compromisos → render-scores → render-admin → render-perfil →
+  render-core → render-tablero → render-compromisos → render-scores →
+  render-admin → render-admin-usuarios → render-admin-mcis → render-admin-contrib →
+  render-perfil →
 app.js
 ```
 
 Todos comparten el scope global `window` — no hay módulos ES. Las funciones son declaraciones hoisted, así que el orden entre los `render-*.js` no importa; solo importa que carguen después de `state.js`/`auth.js` y que `app.js` sea el último (arranca `init()`).
+
+> **Evolución futura (opcional, no implementada):** migrar a un toolchain con build (Vite + módulos ES, y eventualmente TypeScript o un framework). Se evaluó y **se dejó fuera a propósito**: aporta valor a escala (equipos grandes, features continuas, muchos componentes) que este proyecto no tiene. Con la app ya modular por vista/subdominio, el costo de introducir un pipeline de build y reescribir a módulos supera el beneficio para una herramienta interna de ~3 usuarios. Reconsiderar solo si crece el equipo de desarrollo o el ritmo de features.
+
+---
+
+## Pruebas
+
+Sin dependencias externas — usan `unittest` (stdlib de Python) y `node:test` (runner nativo de Node).
+
+```bash
+python tests/run.py              # corre ambas suites (backend + cliente)
+
+# o por separado:
+python -m unittest discover -s tests -v    # solo backend
+node --test tests/test_client.mjs          # solo helpers de cliente
+```
+
+- **`test_server.py`** (25 pruebas) — levanta el servidor en un hilo contra una BD temporal: hash/verificación de contraseñas, sesiones y expiración, login, escritura protegida, control optimista de versión en `/api/doc` (incluye 409), permisos de `/api/users` y migración blob→documentos.
+- **`test_client.mjs`** (8 pruebas) — carga `state.js` en un sandbox `vm` (sin tocar el código de producción) y prueba `esc()` (anti-XSS) y `getWigVal()` (herencia de valores entre semanas).
 
 ---
 
@@ -110,12 +138,22 @@ El frontend siempre trabaja contra el objeto `ST` en memoria. `guardar()` persis
 Los usuarios y contraseñas **viven en el servidor**, no en el estado de la app:
 
 - **Contraseñas hasheadas** con PBKDF2-HMAC-SHA256 (100k iteraciones, salt aleatorio por usuario) — nunca en texto plano. Ver `hash_pwd` / `verify_pwd` en `server.py`.
-- **Login del lado del servidor:** `/api/login` valida contra la tabla `users` y emite un token de sesión (`secrets.token_urlsafe`, TTL 12 h, almacenado en memoria). El cliente lo guarda en `localStorage` y lo envía como `Authorization: Bearer <token>`.
+- **Login del lado del servidor:** `/api/login` valida contra la tabla `users` y emite un token de sesión (`secrets.token_urlsafe`, TTL 12 h, **persistido en la tabla `sessions`**). El cliente lo guarda en `localStorage` y lo envía como `Authorization: Bearer <token>`. Al persistir en BD, las sesiones **sobreviven a reinicios del servidor**: tras una actualización o reinicio de la máquina los usuarios siguen dentro (no deben re-loguearse). Las sesiones expiradas se barren al arrancar.
 - **Escritura protegida:** `POST /api/state` y todo el CRUD de usuarios exigen token válido; sin él responden 401/403. La lectura del tablero (`GET /api/state`) queda pública.
 - El objeto `user` que devuelve el servidor **nunca incluye la contraseña ni su hash**.
 - `_migrarST()` purga cualquier `ST.usuarios` heredado de versiones previas (donde las contraseñas se guardaban en texto plano en el blob).
 
 > El servidor arranca los usuarios semilla (`SEED_USERS` en `server.py`) solo si la tabla `users` está vacía. Cambia esas contraseñas desde el panel de Admin en producción.
+
+### CORS
+
+Por defecto el servidor **no emite** el header `Access-Control-Allow-Origin`, así que solo funciona el mismo origen (server.py sirve frontend y API juntos) y el navegador bloquea peticiones cross-origin. Antes se emitía `*` (cualquier origen), que era innecesario y abría la API a cualquier sitio.
+
+Para permitir un frontend en otro dominio/puerto (p. ej. desarrollo con Vite, o un frontend separado), exporta la variable de entorno con una allowlist separada por comas — solo esos orígenes reciben el header:
+
+```bash
+CORS_ORIGINS="https://4dx.miempresa.com,http://localhost:5173" python server.py
+```
 
 ### Prevención de XSS
 
@@ -135,6 +173,12 @@ CREATE TABLE users (
     username TEXT UNIQUE NOT NULL,
     pwd_hash TEXT NOT NULL,          -- 'salt_hex:hash_hex' (PBKDF2-SHA256)
     nombre   TEXT, rol TEXT, mid TEXT, cargo TEXT, color TEXT
+);
+
+CREATE TABLE sessions (            -- sesiones persistentes (sobreviven reinicios)
+    token    TEXT PRIMARY KEY,
+    username TEXT, rol TEXT, uid TEXT,
+    exp      REAL NOT NULL          -- epoch de expiración; se barren al arrancar
 );
 ```
 
@@ -426,6 +470,46 @@ Un usuario sin permisos ve la evidencia en modo solo lectura.
 ---
 
 ## Historial de cambios
+
+### v2.7 — División de render-admin.js + fix de body no drenado (jul 2026)
+
+Sugerencia #4 del plan (mantenibilidad):
+
+- `render-admin.js` (474 líneas) se dividió por subdominio: `render-admin.js` (orquestador `renderAdmin()`), `render-admin-usuarios.js`, `render-admin-mcis.js`, `render-admin-contrib.js`. `renderAdmin()` ahora compone tres constructores (`adminUsuariosHTML`, `adminMCIsHTML`, `adminContribHTML`), cada uno junto a las mutaciones de su sección.
+- **Fix de servidor (encontrado por las pruebas):** en un rechazo temprano (401/403/400) el servidor no leía el cuerpo de la petición, lo que rompía la conexión de forma intermitente (test flaky ~1/3, y potencialmente errores esporádicos en el navegador real). Ahora `do_POST` **drena el body siempre** antes de rutear. Suite estable 6/6.
+
+---
+
+### v2.6 — Sesiones persistentes (jul 2026)
+
+Sugerencia #3 del plan:
+
+- Las sesiones pasaron de un dict en memoria a la tabla **`sessions`** en SQLite. Ahora **sobreviven a reinicios del servidor**: tras actualizar la app o reiniciar la máquina, los usuarios siguen con sesión iniciada.
+- `new_session`/`session_for`/`end_session` operan contra la tabla; las expiradas se barren al arrancar (`init_db`).
+- Pruebas de sesión adaptadas a BD + nueva `test_end_session_elimina`. Verificado end-to-end: un token emitido por un proceso sigue válido en un proceso reiniciado.
+
+---
+
+### v2.5 — CORS restringido (jul 2026)
+
+Sugerencia #2 del plan:
+
+- El servidor ya **no emite `Access-Control-Allow-Origin: *`**. Por defecto no emite el header (solo mismo origen); cross-origin queda bloqueado por el navegador.
+- Allowlist configurable vía `CORS_ORIGINS` (lista separada por comas) — solo esos orígenes reciben el header, reflejado con `Vary: Origin`.
+- 3 pruebas nuevas en `test_server.py` (sin Origin, origen no listado, origen permitido).
+
+---
+
+### v2.4 — Pruebas automatizadas (jul 2026)
+
+Primera capa de pruebas (sugerencia #1 del plan de mejoras), sin dependencias externas:
+
+- **`tests/test_server.py`** (25 pruebas, `unittest`): hash/verificación PBKDF2, sesiones y expiración, login correcto/incorrecto, `POST /api/state` protegido, control de versión de `/api/doc` (200 y 409), permisos de `/api/users`, y migración blob→documentos. Levanta el servidor en un hilo con BD temporal.
+- **`tests/test_client.mjs`** (8 pruebas, `node:test`): `esc()` (escapado anti-XSS) y `getWigVal()` (herencia entre semanas), cargando `state.js` en un sandbox `vm` sin modificar el código de producción.
+- **`tests/run.py`**: runner unificado de ambas suites.
+- `server.py`: parseo del puerto tolerante al importar el módulo (necesario para las pruebas).
+
+---
 
 ### v2.3 — División de render.js por vista (jul 2026)
 
