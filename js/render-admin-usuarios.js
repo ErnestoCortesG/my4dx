@@ -61,7 +61,7 @@ async function saveUser() {
   const cargo = document.getElementById('u-cargo').value.trim();
   const mid   = document.getElementById('u-mid').value || null;
   // Al crear se exige contraseña; al editar es opcional (vacío = conservar)
-  if (!nom || !usr || (!editUID && !pwd)) { toast('Completa los campos requeridos'); return; }
+  if (!nom || !usr || (!editUID && !pwd)) { toast('Completa los campos requeridos', 'warn'); return; }
   const cols = { admin:'#E02500', integrante:'#1B3A6B', visualizador:'#666' };
   const payload = { id: editUID || null, nombre:nom, username:usr, rol, cargo, mid, color:cols[rol] };
   if (pwd) payload.password = pwd;   // solo se envía si se capturó
@@ -73,27 +73,33 @@ async function saveUser() {
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      toast(e.error || 'No se pudo guardar el usuario'); return;
+      toast(e.error || 'No se pudo guardar el usuario', 'error'); return;
     }
     await cargarUsuarios();
     closeModal('m-user');
     renderAdmin();
-    toast('Usuario guardado ✓');
-  } catch (_) { toast('Error de conexión'); }
+    toast('Usuario guardado ✓', 'ok');
+  } catch (_) { toast('Error de conexión', 'error'); }
 }
 
 async function delUser(id) {
-  if (id === 'u1') { toast('No se puede eliminar el admin principal'); return; }
-  if (!confirm('¿Eliminar este usuario?')) return;
+  if (id === 'u1') { toast('No se puede eliminar el admin principal', 'warn'); return; }
+  const u = USERS.find(x => x.id === id);
+  const ok = await confirmar({
+    titulo: 'Eliminar usuario',
+    mensaje: `¿Eliminar a "${u ? u.nombre : 'este usuario'}"? Perderá el acceso al sistema. Esta acción no se puede deshacer.`,
+    ok: 'Eliminar', peligro: true,
+  });
+  if (!ok) return;
   try {
     const res = await fetch('/api/users/delete', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
       body:    JSON.stringify({ id })
     });
-    if (!res.ok) { toast('No se pudo eliminar'); return; }
+    if (!res.ok) { toast('No se pudo eliminar', 'error'); return; }
     await cargarUsuarios();
     renderAdmin();
-    toast('Usuario eliminado');
-  } catch (_) { toast('Error de conexión'); }
+    toast('Usuario eliminado', 'ok');
+  } catch (_) { toast('Error de conexión', 'error'); }
 }

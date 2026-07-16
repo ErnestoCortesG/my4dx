@@ -113,13 +113,21 @@ function savePredField(mid, pid, field, val) {
   guardarConfig();
 }
 
-function delPred(mid, pid) {
+async function delPred(mid, pid) {
   const m = ST.miembros.find(x => x.id === mid);
   if (!m) return;
+  const p = (m.preds || []).find(x => x.id === pid);
+  const ok = await confirmar({
+    titulo: 'Eliminar medida predictiva',
+    mensaje: `¿Eliminar la medida${p && p.label ? ` "${p.label}"` : ''}? Se borra junto con sus valores capturados.`,
+    ok: 'Eliminar', peligro: true,
+  });
+  if (!ok) return;
   m.preds = (m.preds || []).filter(x => x.id !== pid);
   renderAdmin();
   renderTablero();
   guardarConfig();
+  toast('Medida eliminada', 'ok');
 }
 
 function addPredToMiembro(mid) {
@@ -167,7 +175,7 @@ function mcAddPredRow() {
 function saveContrib() {
   const mid = document.getElementById('mc-mid').value;
   const nom = document.getElementById('mc-nom').value.trim();
-  if (!mid) { toast('Selecciona un integrante'); return; }
+  if (!mid) { toast('Selecciona un integrante', 'warn'); return; }
 
   const m = ST.miembros.find(x => x.id === mid);
   if (!m) return;

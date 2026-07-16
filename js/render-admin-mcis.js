@@ -88,14 +88,19 @@ function saveWigField(id, field, val) {
   guardarConfig();
 }
 
-function limpiarWigDatos(id) {
+async function limpiarWigDatos(id) {
   const w = ST.wigs.find(x => x.id === id);
   if (!w) return;
-  if (!confirm(`¿Borrar los valores de "${w.label}" en la semana ${sem}?\n\nEl elemento se conserva. Se elimina el registro de esta semana; el semáforo volverá a heredar el valor de la semana anterior (o quedará sin datos si no hay ninguno previo).`)) return;
+  const ok = await confirmar({
+    titulo: `Limpiar "${w.label}" · semana ${sem}`,
+    mensaje: 'El elemento se conserva. Se elimina el registro de esta semana; el semáforo volverá a heredar el valor de la semana anterior (o quedará sin datos si no hay ninguno previo).',
+    ok: 'Limpiar', peligro: true,
+  });
+  if (!ok) return;
   limpiarWig(id, sem);
   renderAll();
   guardarSemana(sem);
-  toast(`Datos de "${w.label}" borrados (sem ${sem})`);
+  toast(`Datos de "${w.label}" borrados (sem ${sem})`, 'ok');
 }
 
 function saveWigActual(id, val) {
@@ -119,12 +124,20 @@ function saveWigSem(id, val) {
   guardarSemana(sem);
 }
 
-function delWig(id) {
-  if (ST.wigs.length <= 1) { toast('Debe quedar al menos un elemento'); return; }
+async function delWig(id) {
+  if (ST.wigs.length <= 1) { toast('Debe quedar al menos un elemento', 'warn'); return; }
+  const w = ST.wigs.find(x => x.id === id);
+  const ok = await confirmar({
+    titulo: 'Eliminar elemento',
+    mensaje: `¿Eliminar "${w ? w.label : 'este elemento'}" del MCI? Se borra la definición y todos sus datos capturados. Esta acción no se puede deshacer.`,
+    ok: 'Eliminar', peligro: true,
+  });
+  if (!ok) return;
   ST.wigs = ST.wigs.filter(x => x.id !== id);
   renderAdmin();
   renderTablero();
   guardarConfig();
+  toast('Elemento eliminado', 'ok');
 }
 
 function addWigToMCI(mciNum) {
@@ -143,7 +156,7 @@ function saveMCI() {
   const ini  = parseFloat(document.getElementById('mci-ini').value) || 0;
   const meta = parseFloat(document.getElementById('mci-meta').value) || 100;
   const uni  = document.getElementById('mci-uni').value.trim() || '';
-  if (!tit) { toast('Escribe un título'); return; }
+  if (!tit) { toast('Escribe un título', 'warn'); return; }
   const mciN = Math.max(...ST.wigs.map(w => w.mci), 2) + 1;
   if (!ST.mciTitulos) ST.mciTitulos = {};
   ST.mciTitulos[mciN] = tit;

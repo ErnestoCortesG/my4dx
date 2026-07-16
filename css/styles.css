@@ -415,8 +415,20 @@ table.ptbl tr:hover td{background:#fafaf8}
 .perf-wig-pct{font-size:12px;font-weight:700;text-align:right;white-space:nowrap}
 
 /* TOAST */
-.toast{position:fixed;bottom:18px;right:18px;background:var(--navy);color:#fff;padding:9px 16px;border-radius:7px;font-size:12px;opacity:0;transform:translateY(8px);transition:opacity .25s ease-out,transform .25s ease-out;pointer-events:none;z-index:999}
+.toast{position:fixed;bottom:18px;right:18px;background:var(--navy);color:#fff;padding:9px 16px 9px 14px;border-left:4px solid rgba(255,255,255,.4);border-radius:7px;font-size:12px;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity .25s ease-out,transform .25s var(--ease-out-expo);pointer-events:none;z-index:999;box-shadow:0 6px 20px rgba(5,23,46,.28);max-width:320px}
 .toast.show{opacity:1;transform:translateY(0)}
+.toast-ok{border-left-color:var(--green)}
+.toast-info{border-left-color:#5aa9e6}
+.toast-warn{background:#4a3410;border-left-color:var(--yellow)}
+.toast-error{background:#4a1410;border-left-color:var(--cta)}
+
+/* Diálogo de confirmación */
+.modal-confirm{width:400px}
+.confirm-msg{font-size:13px;color:var(--text-2);line-height:1.5;white-space:pre-line;margin:0 0 20px}
+.confirm-actions{display:flex;justify-content:flex-end;gap:8px}
+.bdanger{background:var(--cta);color:#fff;border:none;border-radius:6px;padding:7px 16px;cursor:pointer;font-size:12px;font-weight:700;transition:background .15s ease-out,transform .1s ease-out}
+.bdanger:hover{background:var(--cta-hov)}
+.bdanger:active{transform:scale(0.97)}
 
 /* ── Responsive — 900px ────────────────────────────────────────────────────── */
 @media (max-width: 900px) {

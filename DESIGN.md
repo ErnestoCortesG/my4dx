@@ -228,6 +228,21 @@ Fondo dinámico basado en el score. Badge y borde del color del score. SVG circu
 @starting-style { .mov.open .modal { scale(0.96); opacity:0 } }
 ```
 
+### Diálogo de confirmación (`confirmar()`)
+
+Reemplaza al `confirm()` nativo del navegador. Función promise-based en `render-core.js` que **construye el modal dinámicamente** y reutiliza la animación de `.mov`/`.modal`. Se usa con `await` en toda acción destructiva (eliminar usuario, elemento MCI, medida, compromiso; limpiar datos).
+
+```js
+const ok = await confirmar({ titulo, mensaje, ok:'Eliminar', peligro:true });
+if (!ok) return;
+```
+
+- `peligro:true` → botón de acción rojo `.bdanger` (`--cta`); si no, `.bconfirm`.
+- Cierra con click en el botón, click en el backdrop, o `Escape`. Enfoca el botón de acción al abrir.
+- `.confirm-msg` usa `white-space:pre-line` (respeta saltos de línea del mensaje).
+
+**Regla:** toda acción irreversible pasa por `confirmar()` con `peligro:true`. Nunca usar `confirm()`/`alert()` nativos.
+
 Cierre animado: `transition: display .22s allow-discrete` en `.mov`.
 
 ### Toast (`.toast`)
@@ -237,7 +252,18 @@ Cierre animado: `transition: display .22s allow-discrete` en `.mov`.
 .toast.show { opacity:1; transform:translateY(0) }
 ```
 
-Fondo `--navy`, radio `7px`, posición `bottom:18px right:18px`.
+Fondo `--navy`, radio `7px`, posición `bottom:18px right:18px`, borde-izquierdo de acento según tipo.
+
+**Variantes** — `toast(msg, tipo)`:
+
+| tipo | Uso | Acento / fondo |
+|------|-----|----------------|
+| `ok` (default) | Éxito, guardado | borde `--green` |
+| `error` | Fallo de operación/conexión | fondo rojo oscuro + borde `--cta`; dura más (3.2 s) |
+| `warn` | Validación, permisos, sesión, conflicto | fondo ámbar oscuro + borde `--yellow` |
+| `info` | Neutro informativo | borde azul |
+
+**Regla:** los mensajes de error usan `'error'`, los de validación/permiso/sesión usan `'warn'`, las confirmaciones de éxito `'ok'`. El texto no debe repetir el color (sin "Error:" al inicio).
 
 ---
 
@@ -325,4 +351,5 @@ style="transform:scaleX(${(pct/100).toFixed(3)});background:${fc}"
 - **Colores hex hardcodeados en los `render-*.js`** para texto: siempre `var(--token)`. Los hex dinámicos en SVG/inline son la excepción aceptada.
 - **`transition: all`**: siempre propiedades explícitas.
 - **`width:X%` en barras de progreso**: siempre `transform:scaleX(X/100)`.
+- **`confirm()` / `alert()` nativos del navegador**: usar siempre `confirmar()` (diálogo con estilo) y `toast()`.
 - **`filter:` en el logo del navbar**: usar directamente `logo-click-neg.svg`; no forzar blanco con CSS.

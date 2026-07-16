@@ -471,6 +471,16 @@ Un usuario sin permisos ve la evidencia en modo solo lectura.
 
 ## Historial de cambios
 
+### v2.8 — Diálogos de confirmación y toasts con variantes (jul 2026)
+
+Pulido de avisos y feedback (verificación y mejora de animaciones/pop-ups):
+
+- **Diálogo de confirmación con estilo** (`confirmar()` en `render-core.js`, promise-based): reemplaza los `confirm()` nativos y **añade aviso a acciones destructivas que no lo tenían** — eliminar elemento MCI (`delWig`), medida (`delPred`) y compromiso (`delComp`). Botón rojo en modo `peligro`, cierre por backdrop/Escape, reutiliza la animación de modales.
+- **Toasts con variantes** `toast(msg, tipo)`: `ok` (verde), `error` (rojo, dura más), `warn` (ámbar), `info` (azul), con borde-acento y sombra. Los mensajes de error/validación/sesión ahora se distinguen visualmente en vez de verse todos iguales.
+- Motion base revisado (ya cumplía Emil/impeccable: ease-out-expo, scale desde 0.96, `prefers-reduced-motion`); no requirió cambios.
+
+---
+
 ### v2.7 — División de render-admin.js + fix de body no drenado (jul 2026)
 
 Sugerencia #4 del plan (mantenibilidad):

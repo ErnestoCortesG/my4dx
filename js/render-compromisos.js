@@ -117,12 +117,20 @@ function togComp(id) {
   guardarSemana(sem);
 }
 
-function delComp(id) {
+async function delComp(id) {
   if (!isAdmin()) return;
   const s = getSem(sem);
+  const c = (s.comps || []).find(x => x.id === id);
+  const ok = await confirmar({
+    titulo: 'Eliminar compromiso',
+    mensaje: `¿Eliminar este compromiso${c && c.lider ? ` de ${c.lider}` : ''}?`,
+    ok: 'Eliminar', peligro: true,
+  });
+  if (!ok) return;
   s.comps = s.comps.filter(x => x.id !== id);
   renderAll();
   guardarSemana(sem);
+  toast('Compromiso eliminado', 'ok');
 }
 
 function qAdd(mci) {

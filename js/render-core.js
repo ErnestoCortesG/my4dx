@@ -99,9 +99,53 @@ function setupDraggable() {
   });
 }
 
-function toast(msg) {
+// Notificación efímera. tipo: 'ok' (default) | 'error' | 'warn' | 'info'.
+let _toastTimer = null;
+function toast(msg, tipo = 'ok') {
   const el = document.getElementById('tst');
   el.textContent = msg;
+  el.className = 'toast toast-' + tipo;          // reinicia variante
+  // reflow para reiniciar la animación si hay toasts consecutivos
+  void el.offsetWidth;
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2200);
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'),
+                           tipo === 'error' ? 3200 : 2200);
+}
+
+// Diálogo de confirmación con estilo de marca (reemplaza al confirm() nativo).
+// Devuelve una Promise<boolean>. Usar con await en acciones destructivas.
+function confirmar({ titulo = 'Confirmar', mensaje = '', ok = 'Confirmar',
+                     cancelar = 'Cancelar', peligro = false } = {}) {
+  return new Promise(resolve => {
+    const mov = document.createElement('div');
+    mov.className = 'mov';
+    mov.innerHTML =
+      `<div class="modal modal-confirm" role="alertdialog" aria-modal="true">
+         <h3>${esc(titulo)}</h3>
+         <p class="confirm-msg">${esc(mensaje)}</p>
+         <div class="confirm-actions">
+           <button type="button" class="bcancel" data-act="cancel">${esc(cancelar)}</button>
+           <button type="button" class="${peligro ? 'bdanger' : 'bconfirm'}" data-act="ok">${esc(ok)}</button>
+         </div>
+       </div>`;
+    document.body.appendChild(mov);
+    requestAnimationFrame(() => mov.classList.add('open'));   // dispara la animación de entrada
+
+    function onKey(e) { if (e.key === 'Escape') cerrar(false); }
+    function cerrar(val) {
+      document.removeEventListener('keydown', onKey);
+      mov.classList.remove('open');
+      setTimeout(() => mov.remove(), 260);   // espera a la transición de salida
+      resolve(val);
+    }
+    mov.addEventListener('click', e => {
+      if (e.target === mov) return cerrar(false);            // click fuera = cancelar
+      const act = e.target.getAttribute('data-act');
+      if (act === 'ok') cerrar(true);
+      else if (act === 'cancel') cerrar(false);
+    });
+    document.addEventListener('keydown', onKey);
+    setTimeout(() => mov.querySelector('[data-act="ok"]')?.focus(), 60);
+  });
 }

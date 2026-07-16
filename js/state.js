@@ -122,9 +122,9 @@ async function guardarDoc(key, data) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken },
       body:    JSON.stringify({ key, data, version: docVersions[key] || 0 })
     });
-    if (res.status === 401) { toast('Sesión expirada — vuelve a iniciar sesión'); return; }
+    if (res.status === 401) { toast('Sesión expirada — vuelve a iniciar sesión', 'warn'); return; }
     if (res.status === 409) {
-      toast('Otro usuario actualizó estos datos — recargando…');
+      toast('Otro usuario actualizó estos datos — recargando…', 'warn');
       await loadState();
       renderAll();
       return;
@@ -132,7 +132,7 @@ async function guardarDoc(key, data) {
     if (res.ok) {
       const r = await res.json();
       docVersions[key] = r.version;
-      toast('Guardado ✓');
+      toast('Guardado ✓', 'ok');
     }
   } catch (_) {
     // Sin servidor: el respaldo en localStorage alcanza

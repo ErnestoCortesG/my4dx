@@ -1,6 +1,6 @@
 // ── Navegación ─────────────────────────────────────────────────────────────
 function goPage(p, el) {
-  if (p === 'admin' && !isAdmin()) { toast('Acceso restringido'); return; }
+  if (p === 'admin' && !isAdmin()) { toast('Acceso restringido', 'warn'); return; }
   document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(x => x.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
@@ -28,7 +28,7 @@ function semHoy()       { const h = semanaActual(); if (sem !== h) { flushPredIn
 
 function selectM(id) {
   if (su?.rol === 'integrante' && su.mid && id !== 'todos' && id !== su.mid) {
-    toast('Solo puedes ver tu propio perfil'); return;
+    toast('Solo puedes ver tu propio perfil', 'warn'); return;
   }
   mActivo = id;
   document.querySelectorAll('.mcard').forEach(x => x.classList.remove('active'));
