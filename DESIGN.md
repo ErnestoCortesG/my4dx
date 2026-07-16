@@ -194,17 +194,23 @@ Hover: `translateY(-1px)` + shadow. Las tarjetas con semáforo llevan `border-to
 │   ├── .mci-avg    promedio % de todos los elementos (24px, font-weight:900)
 │   └── .badge      semáforo del bloque
 └── [.wig-pair × N]
-    ├── .wrow              fila de valor acumulado (barra de progreso)
-    └── .wrow-sem          avance semanal
-        ├── .wrow-sem-banner   "AVANCE SEM. N" — siempre background: --mid (fijo)
-        └── .wig-sem-row       flex: valor + barra + meta + badge
-            ├── .wig-sem-val   valor semanal (14px, 800)
-            ├── .wig-sem-bwrap barra de progreso semanal (5px height)
-            ├── .wmeta         meta semanal
-            └── .badge         semáforo semanal
+    ├── .wrow                  nombre + valor→meta + gráfico + pie
+    │   ├── .wnombre           nombre del elemento
+    │   ├── .wig-val-row       valor actual (17px, 800) → meta
+    │   ├── .wig-track         gráfico racetrack (SVG, 56px alto)
+    │   └── .wfoot             inicio · sem 1 | sub | sem 53
+    └── .wig-semline           avance semanal discreto (una línea)
+        ├── .wig-semline-lbl   "AVANCE SEM. N" (9px, uppercase, --text-3)
+        ├── .wig-sem-val       valor semanal (13px, 800)
+        ├── .wig-sem-bwrap     barra fina (3px height)
+        └── .wmeta             meta semanal
 ```
 
-**Fondos alternados:** `.wig-pair:nth-child(even) { background: rgba(5,23,46,.06) }`. Divisor entre pares: `.wig-pair + .wig-pair { border-top: 2px solid var(--mid) }`.
+**Gráfico racetrack** (`wigTrackSVG()` en `render-tablero.js`): SVG `viewBox 0 0 560 56` con `preserveAspectRatio="none"`. Carriles alternados `rgba(5,23,46,.05)`; línea de meta ideal punteada (`#999`, dasharray 4 3) construida por acumulación de `metaSem` (solo si comparte unidad con el acumulado — con `uniSem` distinta se usa `(meta − inicio) / TOTAL_SEM`); línea de avance real (2.2px, color del semáforo — `--green`/`--yellow`/`--cta`) con `vector-effect: non-scaling-stroke` y punto final (r 4.5, borde blanco). Sin historial intermedio la línea real es una recta `inicio → actual`.
+
+**Separación entre elementos:** `.wig-pair + .wig-pair { border-top: 2px solid var(--mid) }` — sin fondos alternados; la tira semanal se separa de su gráfico con `border-top: 1px dashed var(--border)`.
+
+**Sin badge en la tira semanal:** el semáforo del elemento lo comunica el color de la curva del gráfico; repetirlo abajo era redundante.
 
 ### Tarjetas contributivas (`.contrib-card`)
 
@@ -316,7 +322,7 @@ style="transform:scaleX(${(pct/100).toFixed(3)});background:${fc}"
 - **Side-stripe borders:** no `border-left > 1px` como acento. Usar fondo tintado o nada.
 - **Gradient text:** no `background-clip:text` con gradiente.
 - **Emoji de semáforo** en la UI: solo clases CSS.
-- **Colores hex hardcodeados en render.js** para texto: siempre `var(--token)`. Los hex dinámicos en SVG/inline son la excepción aceptada.
+- **Colores hex hardcodeados en los `render-*.js`** para texto: siempre `var(--token)`. Los hex dinámicos en SVG/inline son la excepción aceptada.
 - **`transition: all`**: siempre propiedades explícitas.
 - **`width:X%` en barras de progreso**: siempre `transform:scaleX(X/100)`.
 - **`filter:` en el logo del navbar**: usar directamente `logo-click-neg.svg`; no forzar blanco con CSS.

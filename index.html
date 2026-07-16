@@ -26,6 +26,7 @@
       <button class="btn-nav" onclick="semAnterior()">◀</button>
       <span class="week-display" id="wlbl">Sem 1</span>
       <button class="btn-nav" onclick="semSiguiente()">▶</button>
+      <button class="btn-sem-hoy" id="btn-sem-hoy" onclick="semHoy()" title="Ir a la semana de calendario en curso">Semana actual</button>
       <button class="btn-save" id="bsave" onclick="guardar()" style="display:none">Guardar</button>
       <button class="btn-login-nav" id="btn-login-nav" onclick="openLoginModal()">Iniciar sesión</button>
       <div id="user-pill-wrap" style="display:none">
@@ -220,11 +221,16 @@
 
 <div class="toast" id="tst"></div>
 
-<!-- Scripts: orden de dependencias data → state → auth → render → app -->
+<!-- Scripts: orden de dependencias data → state → auth → render-* → app -->
 <script src="js/data.js"></script>
 <script src="js/state.js"></script>
 <script src="js/auth.js"></script>
-<script src="js/render.js"></script>
+<script src="js/render-core.js"></script>
+<script src="js/render-tablero.js"></script>
+<script src="js/render-compromisos.js"></script>
+<script src="js/render-scores.js"></script>
+<script src="js/render-admin.js"></script>
+<script src="js/render-perfil.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

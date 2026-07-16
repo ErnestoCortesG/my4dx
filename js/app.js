@@ -11,16 +11,20 @@ function goPage(p, el) {
 
 function flushPredInputs() {
   if (pagina !== 'perfil') return;
+  let cambio = false;
   document.querySelectorAll('#perfil-content .pinp').forEach(function(inp) {
     var v = inp.value.trim();
     if (v !== '' && inp.dataset.predId) {
       getSem(sem).preds[inp.dataset.predId] = parseFloat(v);
+      cambio = true;
     }
   });
+  if (cambio) guardarSemana(sem);
 }
 
 function semAnterior()  { if (sem > 1)  { flushPredInputs(); sem--; renderAll(); } }
-function semSiguiente() { if (sem < 27) { flushPredInputs(); sem++; renderAll(); } }
+function semSiguiente() { if (sem < TOTAL_SEM) { flushPredInputs(); sem++; renderAll(); } }
+function semHoy()       { const h = semanaActual(); if (sem !== h) { flushPredInputs(); sem = h; renderAll(); } }
 
 function selectM(id) {
   if (su?.rol === 'integrante' && su.mid && id !== 'todos' && id !== su.mid) {
@@ -46,9 +50,11 @@ function volverTablero() {
 // ── Init ───────────────────────────────────────────────────────────────────
 (async function init() {
   await loadState();
+  sem = semanaActual();   // arranca en la semana de calendario en curso
   // Arranca directamente en el app sin login screen
   document.getElementById('app-shell').style.cssText = 'display:flex!important;flex-direction:column;height:100vh';
   setupGuestRole();
+  await restoreSession();   // si hay token guardado, restaura la sesión
   setupDraggable();
   renderAll();
 })();

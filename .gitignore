@@ -24,3 +24,7 @@ desktop.ini
 
 # Herramientas de diseño locales
 .impeccable/
+
+# Python
+__pycache__/
+*.pyc

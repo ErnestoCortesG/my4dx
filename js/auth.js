@@ -22,23 +22,74 @@ function openLoginModal() {
   setTimeout(() => document.getElementById('ml-user').focus(), 60);
 }
 
-function loginFromModal() {
+async function loginFromModal() {
   const u = document.getElementById('ml-user').value.trim();
   const p = document.getElementById('ml-pass').value;
   document.getElementById('ml-err').textContent = '';
-  const found = ST.usuarios.find(x => x.username === u && x.password === p);
-  if (!found) {
-    document.getElementById('ml-err').textContent = 'Usuario o contraseña incorrectos.';
-    return;
+  try {
+    const res = await fetch('/api/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ username: u, password: p })
+    });
+    if (!res.ok) {
+      document.getElementById('ml-err').textContent = 'Usuario o contraseña incorrectos.';
+      return;
+    }
+    const data = await res.json();
+    authToken = data.token;
+    su        = data.user;
+    try { localStorage.setItem(TOKEN_KEY, authToken); } catch (_) {}
+    if (isAdmin()) await cargarUsuarios();
+    closeModal('m-login');
+    setupRole();
+    renderAll();
+  } catch (_) {
+    document.getElementById('ml-err').textContent = 'No se pudo conectar con el servidor.';
   }
-  su = found;
-  closeModal('m-login');
-  setupRole();
-  renderAll();
+}
+
+// Restaura la sesión desde el token guardado (al recargar la página).
+async function restoreSession() {
+  let token = null;
+  try { token = localStorage.getItem(TOKEN_KEY); } catch (_) {}
+  if (!token) return;
+  try {
+    const res = await fetch('/api/session', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) { try { localStorage.removeItem(TOKEN_KEY); } catch (_) {} return; }
+    const data = await res.json();
+    authToken = token;
+    su        = data.user;
+    if (isAdmin()) await cargarUsuarios();
+    setupRole();
+  } catch (_) {}
+}
+
+// Carga la lista de usuarios (solo admin) al cache global USERS.
+async function cargarUsuarios() {
+  try {
+    const res = await fetch('/api/users', {
+      headers: { 'Authorization': 'Bearer ' + authToken }
+    });
+    USERS = res.ok ? await res.json() : [];
+  } catch (_) { USERS = []; }
 }
 
 // ── Logout → vuelve a modo invitado ───────────────────────────────────────
-function logout() {
+async function logout() {
+  if (authToken) {
+    try {
+      await fetch('/api/logout', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + authToken }
+      });
+    } catch (_) {}
+  }
+  authToken = null;
+  USERS = [];
+  try { localStorage.removeItem(TOKEN_KEY); } catch (_) {}
   setupGuestRole();
   renderAll();
 }

@@ -1,13 +1,34 @@
-// ── Semanas (S1 = 29 jun – S27 = 28–31 dic 2026) ──────────────────────────
-const SEMANAS = [
-  '',
-  '29 jun–5 jul', '6–12 jul',    '13–19 jul',   '20–26 jul',
-  '27 jul–2 ago', '3–9 ago',     '10–16 ago',   '17–23 ago',   '24–30 ago',
-  '31 ago–6 sep', '7–13 sep',    '14–20 sep',   '21–27 sep',
-  '28 sep–4 oct', '5–11 oct',    '12–18 oct',   '19–25 oct',   '26 oct–1 nov',
-  '2–8 nov',      '9–15 nov',    '16–22 nov',   '23–29 nov',
-  '30 nov–6 dic', '7–13 dic',    '14–20 dic',   '21–27 dic',   '28–31 dic'
-];
+// ── Semanas de calendario 2026 (S1 = 1 ene, lunes a domingo) ──────────────
+// Se generan automáticamente: S1 va del 1 ene al primer domingo (4 ene) y la
+// última termina el 31 dic. Total: 53 semanas.
+const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const SEMANAS = (() => {
+  const labels = [''];
+  let ini = new Date(2026, 0, 1);
+  while (ini.getFullYear() === 2026) {
+    const dow = ini.getDay() === 0 ? 7 : ini.getDay();
+    let fin = new Date(ini);
+    fin.setDate(fin.getDate() + (7 - dow));
+    if (fin.getFullYear() !== 2026) fin = new Date(2026, 11, 31);
+    labels.push(ini.getMonth() === fin.getMonth()
+      ? `${ini.getDate()}–${fin.getDate()} ${MESES_CORTOS[fin.getMonth()]}`
+      : `${ini.getDate()} ${MESES_CORTOS[ini.getMonth()]}–${fin.getDate()} ${MESES_CORTOS[fin.getMonth()]}`);
+    ini = new Date(fin);
+    ini.setDate(ini.getDate() + 1);
+  }
+  return labels;
+})();
+const TOTAL_SEM = SEMANAS.length - 1;
+
+// Semana de calendario correspondiente a la fecha de hoy (1–TOTAL_SEM)
+function semanaActual() {
+  const hoy = new Date();
+  if (hoy < new Date(2026, 0, 1))               return 1;
+  if (hoy > new Date(2026, 11, 31, 23, 59, 59)) return TOTAL_SEM;
+  if (hoy <= new Date(2026, 0, 4, 23, 59, 59))  return 1;
+  const dias = Math.floor((hoy - new Date(2026, 0, 5)) / 86400000);
+  return Math.min(TOTAL_SEM, 2 + Math.floor(dias / 7));
+}
 
 // ── Miembros ───────────────────────────────────────────────────────────────
 const MB = [
@@ -85,9 +106,6 @@ const WB = [
   {id:'cv', label:'Claves con venta 90d',inicio:28,    meta:350,  uni:' claves', mci:2, sub:'Meta: 35% del total'}
 ];
 
-// ── Usuarios base ─────────────────────────────────────────────────────────
-const UB = [
-  {id:'u1', username:'admin',      password:'admin123',  nombre:'Administrador',   rol:'admin',        color:'#E62800', mid:null,     cargo:'Dirección'},
-  {id:'u2', username:'integrante', password:'click2026', nombre:'Sandra Martínez', rol:'integrante',   color:'#e65100', mid:'sandra', cargo:'Promotorías'},
-  {id:'u3', username:'view',       password:'view2026',  nombre:'Visualizador',    rol:'visualizador', color:'#666',    mid:null,     cargo:'Consulta'}
-];
+// Los usuarios y sus contraseñas viven ahora en el servidor (tabla `users`,
+// contraseñas hasheadas). El cliente los obtiene vía /api/users (solo admin)
+// y nunca maneja contraseñas en texto plano. Ver server.py → SEED_USERS.

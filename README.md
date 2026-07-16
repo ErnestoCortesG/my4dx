@@ -42,20 +42,27 @@ python server.py 9000
 ├── css/
 │   └── styles.css      # Todos los estilos (sin frameworks)
 └── js/
-    ├── data.js         # Datos base: SEMANAS, MB (miembros), WB (WIGs), UB (usuarios)
-    ├── state.js        # Estado global ST, getSem(), getWigVal(), guardar(), loadState()
-    ├── auth.js         # login(), logout(), setupRole(), permisos
-    ├── render.js       # Todas las funciones de render y modales
-    └── app.js          # Navegación, selectM(), semAnterior/Siguiente(), init
+    ├── data.js                # Datos base: SEMANAS, MB (miembros), WB (WIGs) — usuarios en el servidor
+    ├── state.js               # Estado global ST, getSem(), getWigVal(), esc(), persistencia por documento
+    ├── auth.js                # login(), logout(), restoreSession(), setupRole(), permisos
+    ├── render-core.js         # Orquestador (renderAll), sidebar, helpers y utilidades UI (toast, modales)
+    ├── render-tablero.js      # Vista Tablero MCI (WIGs + gráfico racetrack)
+    ├── render-compromisos.js  # Vista Compromisos
+    ├── render-scores.js       # Vista Scores
+    ├── render-admin.js        # Módulo Administración (usuarios, MCIs, contributivos)
+    ├── render-perfil.js       # Vista Perfil de integrante
+    └── app.js                 # Navegación, selectM(), semAnterior/Siguiente(), init
 ```
 
 ### Orden de carga de scripts
 
 ```
-data.js → state.js → auth.js → render.js → app.js
+data.js → state.js → auth.js →
+  render-core → render-tablero → render-compromisos → render-scores → render-admin → render-perfil →
+app.js
 ```
 
-Todos comparten el scope global `window` — no hay módulos ES.
+Todos comparten el scope global `window` — no hay módulos ES. Las funciones son declaraciones hoisted, así que el orden entre los `render-*.js` no importa; solo importa que carguen después de `state.js`/`auth.js` y que `app.js` sea el último (arranca `init()`).
 
 ---
 
@@ -74,7 +81,7 @@ Todos comparten el scope global `window` — no hay módulos ES.
 Arranque
   └── loadState() → GET /api/state (servidor)
                   → fallback: localStorage
-                  → fallback: datos de fábrica (UB/MB/WB)
+                  → fallback: datos de fábrica (MB/WB)
 
 Mutación (compromiso, usuario, MCI)
   └── guardar()   → POST /api/state (servidor)
@@ -85,23 +92,79 @@ El frontend siempre trabaja contra el objeto `ST` en memoria. `guardar()` persis
 
 ### API del servidor
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/api/state` | Devuelve el estado completo como JSON |
-| `POST` | `/api/state` | Guarda el estado completo (upsert) |
-| `GET` | `/*` | Sirve archivos estáticos (index.html, css/, js/, assets/) |
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `POST` | `/api/login` | — | Verifica usuario/contraseña; devuelve `{token, user}` |
+| `POST` | `/api/logout` | Bearer | Invalida el token de sesión |
+| `GET` | `/api/session` | Bearer | Restaura la sesión; devuelve `{user}` |
+| `GET` | `/api/state` | — | Ensambla el estado completo desde los documentos; incluye `_versions` |
+| `POST` | `/api/state` | Bearer (admin/integrante) | Compat: desglosa el estado completo en documentos |
+| `POST` | `/api/doc` | Bearer (admin/integrante) | Guarda **un** documento (`config` o `week:N`) con control de versión |
+| `GET` | `/api/users` | Bearer (admin) | Lista de usuarios **sin contraseñas** |
+| `POST` | `/api/users` | Bearer (admin) | Crea o actualiza un usuario |
+| `POST` | `/api/users/delete` | Bearer (admin) | Elimina un usuario |
+| `GET` | `/*` | — | Sirve archivos estáticos (index.html, css/, js/, assets/) |
+
+### Autenticación y seguridad
+
+Los usuarios y contraseñas **viven en el servidor**, no en el estado de la app:
+
+- **Contraseñas hasheadas** con PBKDF2-HMAC-SHA256 (100k iteraciones, salt aleatorio por usuario) — nunca en texto plano. Ver `hash_pwd` / `verify_pwd` en `server.py`.
+- **Login del lado del servidor:** `/api/login` valida contra la tabla `users` y emite un token de sesión (`secrets.token_urlsafe`, TTL 12 h, almacenado en memoria). El cliente lo guarda en `localStorage` y lo envía como `Authorization: Bearer <token>`.
+- **Escritura protegida:** `POST /api/state` y todo el CRUD de usuarios exigen token válido; sin él responden 401/403. La lectura del tablero (`GET /api/state`) queda pública.
+- El objeto `user` que devuelve el servidor **nunca incluye la contraseña ni su hash**.
+- `_migrarST()` purga cualquier `ST.usuarios` heredado de versiones previas (donde las contraseñas se guardaban en texto plano en el blob).
+
+> El servidor arranca los usuarios semilla (`SEED_USERS` en `server.py`) solo si la tabla `users` está vacía. Cambia esas contraseñas desde el panel de Admin en producción.
+
+### Prevención de XSS
+
+Todo texto editable por el usuario (nombres, cargos, etiquetas y descripciones de WIG, medidas predictivas, títulos de MCI, textos y evidencias de compromisos) se inserta con el helper **`esc()`** (en `state.js`), que escapa `& < > " '`. Aplica tanto a contenido HTML como a valores de atributo. Sin esto, un texto como `<img src=x onerror=…>` guardado en un campo se ejecutaría en la pantalla compartida del equipo (XSS almacenado). `esc()` reemplazó los `.replace(/"/g,'&quot;')` parciales que había en los inputs de Admin.
 
 ### Esquema SQLite
 
 ```sql
 CREATE TABLE app_state (
     id         INTEGER PRIMARY KEY CHECK (id = 1),  -- fila única
-    data       TEXT    NOT NULL,                     -- ST completo en JSON
+    data       TEXT    NOT NULL,                     -- ST completo en JSON (sin usuarios)
+    updated_at TEXT    DEFAULT (datetime('now'))
+);
+
+CREATE TABLE users (
+    id       TEXT PRIMARY KEY,
+    username TEXT UNIQUE NOT NULL,
+    pwd_hash TEXT NOT NULL,          -- 'salt_hex:hash_hex' (PBKDF2-SHA256)
+    nombre   TEXT, rol TEXT, mid TEXT, cargo TEXT, color TEXT
+);
+```
+
+`users` guarda las credenciales. El estado del tablero **ya no vive en `app_state`** (blob único) sino en `state_docs`, un documento por sección:
+
+```sql
+CREATE TABLE state_docs (
+    key        TEXT PRIMARY KEY,   -- 'config' | 'week:1' … 'week:53'
+    data       TEXT    NOT NULL,   -- JSON de esa sección
+    version    INTEGER NOT NULL DEFAULT 1,
     updated_at TEXT    DEFAULT (datetime('now'))
 );
 ```
 
-Una sola fila con el estado completo. Backup = copiar `4dx.db`.
+- **`config`** — definiciones globales: `wigs`, `miembros`, `mciTitulos`, `_semCal`.
+- **`week:N`** — datos capturados de la semana N: `wigs`, `wigsExplicit`, `wigSem`, `preds`, `comps`.
+
+`GET /api/state` reensambla estos documentos en la forma `ST` que espera el cliente y añade `_versions` (versión por documento). El backup sigue siendo copiar `4dx.db`. La tabla `app_state` se conserva solo como origen para la migración one-shot a `state_docs`.
+
+### Concurrencia (escritura por documento)
+
+Antes, cualquier cambio guardaba **todo** el estado en una fila (`last-write-wins`): dos personas editando a la vez se pisaban. Ahora cada mutación guarda **solo el documento que tocó**, con control **optimista de versión**:
+
+- El cliente guarda vía `guardarConfig()` o `guardarSemana(n)` → `POST /api/doc {key, data, version}`.
+- El servidor rechaza con **409** si la versión enviada no coincide con la almacenada (alguien más escribió primero). El cliente entonces **recarga y avisa** (`toast`), sin pisar el cambio ajeno.
+- Editar la configuración y una semana —o dos semanas distintas— nunca colisiona, porque son documentos separados. El único punto de contención residual es dos personas editando la **misma** semana a la vez, que ahora se detecta (409) en vez de perderse en silencio.
+
+> Nota: `updWIG`/`updPred` (valores capturados en el perfil) antes no persistían al servidor — solo vivían en memoria. Con la normalización ahora guardan su semana correctamente.
+
+> **Nota de despliegue:** el servidor de la app es `server.py` (Python stdlib). `.claude/launch.json` arranca el preview con `python server.py 5173`. Un servidor estático (`npx serve`) **no** sirve la API `/api/*` y la autenticación no funcionaría.
 
 ### Pantallas y control de visibilidad
 
@@ -113,7 +176,7 @@ El sistema tiene dos pantallas: `#login-screen` y `#app-shell`. La visibilidad s
 
 ```js
 ST = {
-  usuarios:   [...],            // copia mutable de UB
+  // (los usuarios NO viven aquí — están en la tabla `users` del servidor)
   miembros:   [...],            // copia mutable de MB (con preds[])
   wigs:       [...],            // copia mutable de WB (con uniSem opcional)
   mciTitulos: { 1: '...', 2: '...' },  // títulos editables de MCIs generales
@@ -136,6 +199,15 @@ ST = {
 }
 ```
 
+### Elementos sin datos
+
+Un elemento MCI sin ningún registro capturado (ni acumulado ni avance semanal en ninguna semana) **no cuenta en los semáforos**: se excluye del promedio del bloque y de las tarjetas resumen, y su gráfico se pinta en gris neutro con la leyenda "sin datos". Helpers en `state.js`:
+
+- `wigTieneDatos(wigId)` — true si alguna semana tiene valor acumulado o avance semanal para ese WIG
+- `limpiarWig(wigId, n)` — borra los registros del WIG **solo en la semana `n`** (`wigs`, `wigsExplicit`, `wigSem`); el elemento se conserva
+
+En Administración, cada elemento tiene un botón **Limpiar** (con confirmación) que ejecuta `limpiarWigDatos()`: borra el registro de la **semana activa**, re-renderiza y persiste. Tras borrarlo, `getWigVal` vuelve a heredar el valor de la semana anterior (o queda sin datos si no hay ninguno previo).
+
 ### Acumulación de valores WIG
 
 Los valores acumulados de los elementos MCI generales **se mantienen de semana en semana** a menos que Admin los cambie explícitamente. El mecanismo:
@@ -155,7 +227,7 @@ Los valores acumulados de los elementos MCI generales **se mantienen de semana e
 | `meta` | number | Valor objetivo al 31 dic 2026 |
 | `uni` | string | Unidad de medida (`%`, ` claves`, etc.) |
 | `uniSem` | string? | Unidad para el avance semanal (override de `uni`; si null usa `uni`) |
-| `metaSem` | number? | Meta de avance semanal (si null se calcula como `(meta - inicio) / 27`) |
+| `metaSem` | number? | Meta de avance semanal (si null se calcula como `(meta - inicio) / TOTAL_SEM`) |
 | `mci` | number | MCI al que pertenece (1 o 2) |
 | `sub` | string | Descripción corta visible en el tablero |
 
@@ -188,10 +260,16 @@ Cada MCI general se muestra en un bloque con:
 
 - **Encabezado:** número, título, porcentaje promedio de avance de todos sus elementos y badge de semáforo
 - **Elementos:** una fila por WIG con:
-  - Valor acumulado actual → meta (con barra de progreso)
-  - Tira de avance semanal: valor de esa semana, barra de progreso semanal, meta semanal y badge de semáforo
-  - Fondo alternado entre elementos consecutivos para facilitar lectura
-  - Banner "AVANCE SEM. N" siempre en `--mid` (no cambia de color con el semáforo)
+  - Nombre, valor acumulado actual → meta y descripción (`sub`)
+  - **Gráfico racetrack** (`wigTrackSVG` en `render-tablero.js`): carriles horizontales alternados con dos trayectorias — línea punteada gris de meta ideal y línea sólida del color del semáforo con el avance real, terminada en un punto
+  - Tira discreta de avance semanal: etiqueta "AVANCE SEM. N", valor, barra fina de 3px y meta semanal (sin badge — el color lo comunica la curva principal)
+  - Divisor navy de 2px entre elementos consecutivos
+
+### Lógica del gráfico racetrack
+
+- **Línea ideal:** acumulación de `metaSem` por semana — `ideal(k) = inicio + metaSem × (k−1)`, topada en `meta`. Si la meta se alcanza antes de la última semana (53), la línea continúa plana hasta el final. **Regla de unidades:** `metaSem` solo se usa si está en la misma unidad que el acumulado (sin override `uniSem`); si el avance semanal se mide en otra unidad, el ritmo ideal se deriva como `(meta − inicio) / TOTAL_SEM`.
+- **Línea real:** rectas entre "anclas" — las semanas donde existe un valor guardado en `ST.semanas[k].wigs`. Sin historial intermedio, es una recta pura desde `inicio` (sem 1) hasta el valor actual en la semana en curso (equivale a dividir el avance entre las semanas transcurridas).
+- **Escala Y:** de `min(inicio, actual)` a `max(meta, actual, idealFinal)` — la curva real nunca se sale del área visible aunque supere la meta.
 
 ---
 
@@ -246,7 +324,12 @@ Los IDs de predictivas (`sp1`, `ep1`, `zp1`, etc.) son estables — son las clav
 
 ## Semanas
 
-Las semanas van de **S1 (29 jun 2026) a S27 (31 dic 2026)**. El array `SEMANAS` en `data.js` indexa en base 1; el índice 0 es un string vacío.
+Las semanas siguen el **calendario anual 2026**: S1 = 1–4 ene (parcial) y S53 = 28–31 dic, con semanas de lunes a domingo. El array `SEMANAS` se genera automáticamente en `data.js` (índice 0 vacío, base 1). Constantes y helpers:
+
+- `TOTAL_SEM` — número total de semanas del año (53)
+- `semanaActual()` — semana de calendario correspondiente a la fecha de hoy; la app arranca posicionada en ella
+
+**Migración:** el esquema anterior iniciaba en S1 = 29 jun (26 semanas de desfase). `_migrarST()` desplaza una sola vez todas las semanas guardadas +26 (marca `ST._semCal`) y marca como explícitos los valores de la antigua semana 1 (ahora S27) para que sobrevivan la limpieza de herencia.
 
 ---
 
@@ -343,6 +426,80 @@ Un usuario sin permisos ve la evidencia en modo solo lectura.
 ---
 
 ## Historial de cambios
+
+### v2.3 — División de render.js por vista (jul 2026)
+
+Paso 4 del plan (mantenibilidad):
+
+- El monolito `render.js` (1,170 líneas) se dividió en **6 archivos por vista**: `render-core.js` (orquestador, sidebar, utilidades), `render-tablero.js`, `render-compromisos.js`, `render-scores.js`, `render-admin.js`, `render-perfil.js`.
+- Refactor puramente mecánico: mismas 44 funciones globales, sin cambio de comportamiento. `index.html` carga los 6 en secuencia antes de `app.js`.
+- Verificado: las 5 vistas renderizan sin error y sin cambios visuales; `node --check` OK en los 6 archivos.
+
+---
+
+### v2.2 — Persistencia normalizada por documento (jul 2026)
+
+Paso 3 del plan (concurrencia):
+
+- Nueva tabla **`state_docs`** (un documento por sección: `config` + `week:N`), reemplaza el blob único `app_state`.
+- **Escritura granular con versión optimista:** `POST /api/doc` guarda un solo documento y rechaza con **409** si la versión está desactualizada. En el cliente, `guardarConfig()` / `guardarSemana(n)` sustituyen al `guardar()` de blob completo; en conflicto se recarga y avisa.
+- Cada mutación en `render.js`/`app.js` llama al guardado de la sección que toca (config vs. semana) — editar config y una semana ya no colisionan.
+- `GET /api/state` reensambla los documentos (forma `ST` + `_versions`); migración one-shot del blob a documentos en `_migrar_blob_a_docs`.
+- Fix: `updWIG`/`updPred` ahora sí persisten (antes solo vivían en memoria).
+
+---
+
+### v2.1 — Escapado HTML / anti-XSS (jul 2026)
+
+Paso 2 del plan de seguridad:
+
+- Nuevo helper **`esc()`** en `state.js` que escapa `& < > " '`.
+- Aplicado a **todas** las inserciones de texto editable en `render.js` (sidebar, tablero, contrib-cards, compromisos, scores, admin, perfil, modales y selectores).
+- Reemplaza los `.replace(/"/g,'&quot;')` parciales que solo cubrían comillas en algunos inputs.
+- Verificado: un payload `<img onerror>` en campos editables se renderiza como texto escapado y no se ejecuta.
+
+---
+
+### v2.0 — Autenticación en el servidor (jul 2026)
+
+Endurecimiento de seguridad (paso 1 del plan de mejoras):
+
+- **Contraseñas hasheadas** (PBKDF2-HMAC-SHA256, salt por usuario) en una tabla `users` del servidor; se acabó el texto plano.
+- **Autenticación del lado del servidor:** nuevos endpoints `/api/login`, `/api/logout`, `/api/session`; tokens Bearer con TTL de 12 h.
+- **Escritura protegida:** `POST /api/state` y el CRUD de usuarios (`/api/users*`) exigen token; el login client-side (`ST.usuarios.find`) fue eliminado.
+- Usuarios y contraseñas **fuera del blob de estado**: `data.js` ya no trae `UB`; `state.js` quitó `ST.usuarios`; el cliente usa el cache `USERS` (vía `/api/users`, solo admin) y un `authToken`.
+- Sesión persistente: `restoreSession()` reingresa con el token guardado al recargar.
+- `.claude/launch.json` ahora arranca `python server.py` (antes `npx serve`, que no servía la API).
+
+---
+
+### v1.9 — Gráfico racetrack + semanas de calendario (jul 2026)
+
+#### Semanas alineadas al calendario anual
+- `SEMANAS` se genera automáticamente en `data.js`: S1 = 1–4 ene, S53 = 28–31 dic (lunes a domingo)
+- `TOTAL_SEM` (53) reemplaza el 27 hardcodeado en navegación, metas semanales auto y gráficos
+- `semanaActual()`: la app arranca en la semana de calendario en curso
+- Migración one-shot en `_migrarST()`: semanas guardadas desplazadas +26 (el esquema viejo iniciaba el 29 jun); valores de la antigua S1 marcados explícitos
+- Compromisos demo de fábrica sembrados en la S27 (su semana real de calendario)
+- Botón **"Semana actual"** junto al navegador de semanas — salta a la semana de calendario en curso
+
+#### Limpieza de elementos MCI
+- Botón **Limpiar** por elemento en Administración: borra el registro del WIG **de la semana activa** (el elemento se conserva); el valor vuelve a heredarse de la semana anterior
+- Elementos sin datos capturados quedan fuera de los semáforos: excluidos del promedio del bloque y tarjetas resumen, gráfico en gris neutro con leyenda "sin datos"
+- Helpers `wigTieneDatos()` y `limpiarWig(id, n)` en `state.js`
+
+#### Correcciones
+- **Acceso a perfiles de integrantes:** una medida predictiva sin campo `mci` (agregada desde Admin) lanzaba una excepción en `renderPerfil()`, dejando el perfil anterior visible al hacer clic en un integrante (sidebar o contrib-card del Tablero). Se hace `renderPerfil` tolerante a `mci` vacío, el alta de medidas asigna `mci: 'Ambos MCIs'` por defecto, y `_migrarST()` repara las medidas ya guardadas sin MCI.
+
+
+- **`wigTrackSVG()`** en `render.js`: cada elemento MCI sustituye la barra de progreso lineal por un gráfico de carriles (estilo 4DX) con dos trayectorias:
+  - Meta ideal: línea punteada gris construida acumulando `metaSem` por semana, con tramo plano si alcanza la meta antes de la última semana (53)
+  - Avance real: línea sólida del color del semáforo, trazada como rectas entre semanas con valor explícito; sin historial es una recta `inicio → actual`
+- **Tira de avance semanal rediseñada** (`.wig-semline`): una sola línea discreta con etiqueta, valor, barra de 3px y meta — se eliminó el banner navy y el badge de semáforo semanal
+- **Fondos alternados eliminados** de `.wig-pair` — el divisor navy de 2px es el único separador entre elementos
+- Eje del gráfico: etiquetas `sem 1` / `sem 53` en el pie de cada elemento
+
+---
 
 ### v1.8 — WIGs acumulativos + ajustes de semáforo + UI (jul 2026)
 
