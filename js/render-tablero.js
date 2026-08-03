@@ -44,7 +44,7 @@ function renderTablero() {
     const ws  = ST.wigs.filter(w => w.mci === n && wigTieneDatos(w.id));
     const avs = ws.map(w => {
       const a = getWigVal(sem, w.id);
-      return Math.min(100, Math.max(0, Math.round((a - w.inicio) / (w.meta - w.inicio) * 100)));
+      return Math.min(100, Math.max(0, Math.round(a / w.meta * 100)));
     });
     const tit = esc(ST.mciTitulos?.[n] || `MCI ${n}`);
     if (!avs.length) {
@@ -80,18 +80,22 @@ function renderTablero() {
   const ro = !canEdit();
   // Gráfico racetrack: carriles + línea de meta ideal (metaSem acumulado)
   // + línea de avance real (rectas entre semanas con valor explícito).
-  function wigTrackSVG(w, lineColor) {
+  function wigTrackSVG(w, lineColor, valTxt, valColor) {
     const W = 560, H = 56, PL = 6, PR = 6, PT = 7, PB = 7;
-    // Ritmo de la línea ideal: metaSem solo aplica si está en la misma unidad
-    // que el acumulado (sin override uniSem); si no, ritmo derivado de la meta anual
-    const mismaUni = w.uniSem == null || w.uniSem === '' || w.uniSem === w.uni;
-    const wkTarget = (mismaUni && w.metaSem != null && w.metaSem > 0)
-      ? w.metaSem
-      : (w.meta - w.inicio) / TOTAL_SEM;
     const a = getWigVal(sem, w.id);
-    const idealEnd = Math.min(w.meta, w.inicio + wkTarget * (TOTAL_SEM - 1));
-    const vmin = Math.min(w.inicio, a);
-    const vmax = Math.max(w.meta, a, idealEnd);
+    // Línea real: anclas = semanas con valor capturado (la trayectoria real).
+    const pts = [];
+    for (let k = 1; k <= sem; k++) {
+      const sk = ST.semanas[k];
+      if (sk && sk.wigs && sk.wigs[w.id] !== undefined) pts.push([k, parseFloat(sk.wigs[w.id])]);
+    }
+    // Si no hay ancla en la semana 1, arranca en `inicio` (evita duplicar el punto);
+    // si la última ancla no es la semana en curso, extiende con el valor heredado.
+    if (pts.length === 0 || pts[0][0] > 1) pts.unshift([1, w.inicio]);
+    if (pts[pts.length - 1][0] < sem) pts.push([sem, a]);
+    // Escala vertical sobre inicio, meta y TODOS los valores reales (nada se recorta).
+    const vals = [w.inicio, w.meta, ...pts.map(p => p[1])];
+    const vmin = Math.min(...vals), vmax = Math.max(...vals);
     const span = (vmax - vmin) || 1;
     const x = k => PL + (k - 1) / (TOTAL_SEM - 1) * (W - PL - PR);
     const y = v => H - PB - (v - vmin) / span * (H - PT - PB);
@@ -101,37 +105,40 @@ function renderTablero() {
     for (let i = 0; i < 4; i++) {
       if (i % 2 === 0) lanes += `<rect x="0" y="${(i * laneH).toFixed(1)}" width="${W}" height="${laneH.toFixed(1)}" fill="rgba(5,23,46,.05)"/>`;
     }
-    // Línea ideal: recta desde inicio; si alcanza la meta antes de la última semana, tramo plano
-    const hitWeek = wkTarget > 0 ? 1 + (w.meta - w.inicio) / wkTarget : TOTAL_SEM;
-    const ideal = hitWeek < TOTAL_SEM
-      ? `M${x(1).toFixed(1)},${y(w.inicio).toFixed(1)} L${x(hitWeek).toFixed(1)},${y(w.meta).toFixed(1)} L${x(TOTAL_SEM).toFixed(1)},${y(w.meta).toFixed(1)}`
-      : `M${x(1).toFixed(1)},${y(w.inicio).toFixed(1)} L${x(TOTAL_SEM).toFixed(1)},${y(idealEnd).toFixed(1)}`;
-    // Línea real: anclas = semanas con valor guardado; sin historial es una
-    // recta pura inicio → valor actual en la semana en curso
-    const pts = [[1, w.inicio]];
-    for (let k = 1; k <= sem; k++) {
-      const sk = ST.semanas[k];
-      if (sk && sk.wigs[w.id] !== undefined) pts.push([k, parseFloat(sk.wigs[w.id])]);
-    }
-    const last = pts[pts.length - 1];
-    if (last[0] < sem) pts.push([sem, a]);
+    // Línea de meta ideal: recta directa de inicio (sem 1) a meta (última semana),
+    // el ritmo constante para alcanzar el objetivo al cierre del año.
+    const ideal = `M${x(1).toFixed(1)},${y(w.inicio).toFixed(1)} L${x(TOTAL_SEM).toFixed(1)},${y(w.meta).toFixed(1)}`;
     const real = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(' ');
-    const ex = x(pts[pts.length - 1][0]).toFixed(1), ey = y(pts[pts.length - 1][1]).toFixed(1);
-    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="wig-track-svg" aria-hidden="true">
+    const exN = x(pts[pts.length - 1][0]), eyN = y(pts[pts.length - 1][1]);
+    const ex = exN.toFixed(1), ey = eyN.toFixed(1);
+    const svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="wig-track-svg" aria-hidden="true">
       ${lanes}
       <path d="${ideal}" stroke="#999" stroke-width="1.3" stroke-dasharray="4 3" fill="none" vector-effect="non-scaling-stroke"/>
       <path d="${real}" stroke="${lineColor}" stroke-width="2.2" fill="none" vector-effect="non-scaling-stroke"/>
       <circle cx="${ex}" cy="${ey}" r="4.5" fill="${lineColor}" stroke="#fff" stroke-width="1.5"/>
     </svg>`;
+    // Etiqueta de valor sobre el punto de avance (HTML superpuesto, sin distorsión).
+    // Se ancla en % horizontal y px vertical; se re-alinea cerca de los bordes.
+    if (!valTxt) return svg;
+    const leftPct = exN / W * 100;
+    const tx = leftPct <= 10 ? '0' : leftPct >= 90 ? '-100%' : '-50%';
+    const ty = eyN > 16 ? 'calc(-100% - 3px)' : '3px';   // debajo si el punto está muy arriba
+    const valSpan = `<span class="wig-track-val" style="left:${leftPct.toFixed(1)}%;top:${eyN.toFixed(1)}px;transform:translate(${tx},${ty});color:${valColor}">${esc(valTxt)}</span>`;
+    return svg + valSpan;
   }
 
   function mciBloque(num, tit, ws) {
     const rows = ws.map(w => {
       const conDatos = wigTieneDatos(w.id);
       const a   = getWigVal(sem, w.id);
-      const av  = Math.min(100, Math.max(0, Math.round((a - w.inicio) / (w.meta - w.inicio) * 100)));
+      const av  = Math.min(100, Math.max(0, Math.round(a / w.meta * 100)));
       // Sin datos capturados: línea neutra, fuera del semáforo
       const lineColor = !conDatos ? 'var(--border)' : av >= 100 ? 'var(--green)' : av >= 50 ? 'var(--yellow)' : 'var(--cta)';
+      // Valor sobre el punto de avance del gráfico (color oscuro del semáforo)
+      const trackValColor = av >= 100 ? 'var(--green-dk)' : av >= 50 ? 'var(--yellow-dk)' : 'var(--red-dk)';
+      const trackValTxt   = conDatos ? (w.uni === '%' ? a + '%' : String(a)) : '';
+      // Avance semanal: campo independiente que se captura a mano en Admin
+      // (no se deriva del acumulado). Vacío → la tira muestra "—".
       const ws_      = s.wigSem[w.id];
       const wkTarget = (w.metaSem != null && w.metaSem > 0) ? w.metaSem : (w.meta - w.inicio) / TOTAL_SEM;
       const wkPct    = (ws_ != null && wkTarget > 0) ? Math.min(100, Math.round(ws_ / wkTarget * 100)) : null;
@@ -151,7 +158,7 @@ function renderTablero() {
           <div class="wig-val-row">
             <span class="wactual">${conDatos ? a + esc(w.uni) : '—'}</span><span class="wmeta">→ meta ${w.meta}${esc(w.uni)}</span>${conDatos ? '' : '<span class="wmeta" style="font-style:italic">sin datos — no cuenta en semáforos</span>'}
           </div>
-          <div class="wig-track">${wigTrackSVG(w, lineColor)}</div>
+          <div class="wig-track">${wigTrackSVG(w, lineColor, trackValTxt, trackValColor)}</div>
           <div class="wfoot"><span>inicio: ${w.inicio}${esc(w.uni)} · sem 1</span><span>${esc(w.sub || '')}</span><span>sem ${TOTAL_SEM}</span></div>
         </div>${semRow}
       </div>`;
@@ -159,7 +166,7 @@ function renderTablero() {
     // Promedio del bloque: solo elementos con datos capturados
     const avgs = ws.filter(w => wigTieneDatos(w.id)).map(w => {
       const a = getWigVal(sem, w.id);
-      return Math.round((a - w.inicio) / (w.meta - w.inicio) * 100);
+      return Math.min(100, Math.max(0, Math.round(a / w.meta * 100)));
     });
     const avg = avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) : null;
     const bc  = avg === null ? 'by' : avg >= 100 ? 'bg' : avg >= 50 ? 'by' : 'br';

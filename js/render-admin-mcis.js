@@ -33,11 +33,13 @@ function adminMCIsHTML() {
         <div class="waefield waefield-num">
           <label class="waelbl">Actual (Sem ${sem})</label>
           <input type="number" class="waeinp" value="${actual}"
+            title="Valor acumulado a esta semana."
             onchange="saveWigActual('${w.id}',parseFloat(this.value)||0)">
         </div>
         <div class="waefield waefield-num">
           <label class="waelbl">Avance sem. ${sem}</label>
           <input type="number" class="waeinp" value="${s.wigSem[w.id] ?? ''}" placeholder="—"
+            title="Avance de esta semana. Campo independiente, se captura libremente."
             onchange="saveWigSem('${w.id}',this.value)">
         </div>
         <div class="waefield waefield-uni">
@@ -67,6 +69,7 @@ function adminMCIsHTML() {
         <input type="text" class="wagtit-inp" autocomplete="off" value="${esc(tit)}"
           onchange="saveMCITitulo(${n},this.value)" title="Editar título del MCI">
         <button type="button" class="waeadd" onclick="addWigToMCI(${n})">+ Elemento</button>
+        <button type="button" class="wagdel" onclick="delMCI(${n})" title="Eliminar este MCI y todos sus elementos">×</button>
       </div>
       <div class="waebody">${filas}</div>
     </div>`;
@@ -112,8 +115,10 @@ function saveWigActual(id, val) {
   guardarSemana(sem);
 }
 
+// Avance semanal manual e independiente del acumulado.
 function saveWigSem(id, val) {
   const s = getSem(sem);
+  if (!s.wigSem) s.wigSem = {};
   const n = parseFloat(val);
   if (val === '' || val === null) {
     delete s.wigSem[id];
@@ -146,6 +151,38 @@ function addWigToMCI(mciNum) {
   renderAdmin();
   renderTablero();
   guardarConfig();
+}
+
+// Elimina un MCI general completo: su título y todos sus elementos (WIGs),
+// más los datos capturados de esos elementos en todas las semanas.
+async function delMCI(n) {
+  const tit = ST.mciTitulos?.[n] || `MCI ${n}`;
+  const elems = ST.wigs.filter(w => w.mci === n);
+  const ok = await confirmar({
+    titulo: 'Eliminar MCI general',
+    mensaje: `¿Eliminar "${tit}" y sus ${elems.length} elemento(s)? Se borran las definiciones y todos sus datos capturados en todas las semanas. Esta acción no se puede deshacer.`,
+    ok: 'Eliminar', peligro: true,
+  });
+  if (!ok) return;
+  const ids = new Set(elems.map(w => w.id));
+  ST.wigs = ST.wigs.filter(w => w.mci !== n);
+  if (ST.mciTitulos) delete ST.mciTitulos[n];
+  // Purgar datos semanales de esos elementos; recordar qué semanas cambiaron
+  const tocadas = [];
+  Object.entries(ST.semanas || {}).forEach(([wk, s]) => {
+    let ch = false;
+    ids.forEach(id => {
+      if (s.wigs && id in s.wigs) { delete s.wigs[id]; ch = true; }
+      if (s.wigsExplicit && id in s.wigsExplicit) delete s.wigsExplicit[id];
+      if (s.wigSem && id in s.wigSem) { delete s.wigSem[id]; ch = true; }
+    });
+    if (ch) tocadas.push(parseInt(wk));
+  });
+  renderAdmin();
+  renderTablero();
+  guardarConfig();
+  tocadas.forEach(k => guardarSemana(k));
+  toast(`MCI "${tit}" eliminado`, 'ok');
 }
 
 function openMCI() { document.getElementById('m-nuevomci').classList.add('open'); }

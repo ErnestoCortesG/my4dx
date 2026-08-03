@@ -206,7 +206,9 @@ Hover: `translateY(-1px)` + shadow. Las tarjetas con semáforo llevan `border-to
         └── .wmeta             meta semanal
 ```
 
-**Gráfico racetrack** (`wigTrackSVG()` en `render-tablero.js`): SVG `viewBox 0 0 560 56` con `preserveAspectRatio="none"`. Carriles alternados `rgba(5,23,46,.05)`; línea de meta ideal punteada (`#999`, dasharray 4 3) construida por acumulación de `metaSem` (solo si comparte unidad con el acumulado — con `uniSem` distinta se usa `(meta − inicio) / TOTAL_SEM`); línea de avance real (2.2px, color del semáforo — `--green`/`--yellow`/`--cta`) con `vector-effect: non-scaling-stroke` y punto final (r 4.5, borde blanco). Sin historial intermedio la línea real es una recta `inicio → actual`.
+**Gráfico racetrack** (`wigTrackSVG()` en `render-tablero.js`): SVG `viewBox 0 0 560 56` con `preserveAspectRatio="none"`. Carriles alternados `rgba(5,23,46,.05)`; línea de meta ideal punteada (`#999`, dasharray 4 3): recta directa de `(sem 1, inicio)` a `(última semana, meta)` — sin codos; línea de avance real (2.2px, color del semáforo — `--green`/`--yellow`/`--cta`) con `vector-effect: non-scaling-stroke` y punto final (r 4.5, borde blanco). Sin historial intermedio la línea real es una recta `inicio → actual`.
+
+**Valor sobre el punto de avance** (`.wig-track-val`): el valor actual se muestra como etiqueta HTML **superpuesta** (no dentro del SVG, para evitar la distorsión del `preserveAspectRatio="none"`), posicionada por `left:%` + `top:px` sobre el punto final, en el color oscuro del semáforo (`--green-dk`/`--yellow-dk`/`--red-dk`). Se re-alinea cerca de los bordes (izquierda/derecha) y se coloca debajo del punto si está muy arriba. Muestra `%` solo cuando la unidad es porcentaje; se omite si el elemento no tiene datos.
 
 **Separación entre elementos:** `.wig-pair + .wig-pair { border-top: 2px solid var(--mid) }` — sin fondos alternados; la tira semanal se separa de su gráfico con `border-top: 1px dashed var(--border)`.
 
@@ -264,6 +266,10 @@ Fondo `--navy`, radio `7px`, posición `bottom:18px right:18px`, borde-izquierdo
 | `info` | Neutro informativo | borde azul |
 
 **Regla:** los mensajes de error usan `'error'`, los de validación/permiso/sesión usan `'warn'`, las confirmaciones de éxito `'ok'`. El texto no debe repetir el color (sin "Error:" al inicio).
+
+**Timing asimétrico:** la entrada del toast es `.28s` (curva expo, con presencia) y la salida `.16s` (más rápida) — el aviso no debe entretenerse al desaparecer. Mismo principio para cualquier enter/exit: lento donde el usuario decide, rápido donde el sistema responde.
+
+**Feedback de pulsación:** todo elemento presionable lleva `:active { transform: scale(…) }` — botones grandes `0.97`, botones de icono pequeños (× eliminar, editar, limpiar) `0.9`. Sin esto, el control no "responde" al click.
 
 ---
 

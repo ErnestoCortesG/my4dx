@@ -194,7 +194,7 @@ CREATE TABLE state_docs (
 ```
 
 - **`config`** — definiciones globales: `wigs`, `miembros`, `mciTitulos`, `_semCal`.
-- **`week:N`** — datos capturados de la semana N: `wigs`, `wigsExplicit`, `wigSem`, `preds`, `comps`.
+- **`week:N`** — datos capturados de la semana N: `wigs`, `wigsExplicit`, `preds`, `comps`. (`wigSem` quedó obsoleto: el avance semanal ahora se **deriva** del acumulado, ya no se captura por separado.)
 
 `GET /api/state` reensambla estos documentos en la forma `ST` que espera el cliente y añade `_versions` (versión por documento). El backup sigue siendo copiar `4dx.db`. La tabla `app_state` se conserva solo como origen para la migración one-shot a `state_docs`.
 
@@ -247,10 +247,14 @@ ST = {
 
 Un elemento MCI sin ningún registro capturado (ni acumulado ni avance semanal en ninguna semana) **no cuenta en los semáforos**: se excluye del promedio del bloque y de las tarjetas resumen, y su gráfico se pinta en gris neutro con la leyenda "sin datos". Helpers en `state.js`:
 
-- `wigTieneDatos(wigId)` — true si alguna semana tiene valor acumulado o avance semanal para ese WIG
+- `wigTieneDatos(wigId)` — true si alguna semana tiene valor acumulado capturado para ese WIG
 - `limpiarWig(wigId, n)` — borra los registros del WIG **solo en la semana `n`** (`wigs`, `wigsExplicit`, `wigSem`); el elemento se conserva
 
 En Administración, cada elemento tiene un botón **Limpiar** (con confirmación) que ejecuta `limpiarWigDatos()`: borra el registro de la **semana activa**, re-renderiza y persiste. Tras borrarlo, `getWigVal` vuelve a heredar el valor de la semana anterior (o queda sin datos si no hay ninguno previo).
+
+Cada MCI general tiene además un botón **×** en su encabezado (`delMCI`) que elimina el MCI completo — su título y todos sus elementos (WIGs) — más los datos capturados de esos elementos en todas las semanas. Requiere confirmación (acción destructiva).
+
+En la sección **MCI contributivos por integrante**, cada bloque tiene un botón **×** (`delMiembro`) que elimina al integrante: su MCI contributivo y todas sus medidas predictivas. Desaparece del panel lateral y del tablero. Requiere confirmación.
 
 ### Acumulación de valores WIG
 
@@ -281,8 +285,10 @@ Los valores acumulados de los elementos MCI generales **se mantienen de semana e
 
 ### Umbrales (todos los semáforos de la app)
 
-| Color | Condición sobre el avance `(actual - inicio) / (meta - inicio) × 100` |
-|-------|------------------------------------------------------------------------|
+El avance de un elemento MCI se mide como **avance hacia la meta**: `actual / meta × 100` (topado en 0–100). No se mide relativo al inicio, para que un valor por debajo del punto de partida no produzca porcentajes negativos.
+
+| Color | Condición sobre el avance `actual / meta × 100` |
+|-------|--------------------------------------------------|
 | Verde | Avance ≥ 100% |
 | Amarillo | Avance 50–99% |
 | Rojo | Avance < 50% |
@@ -309,9 +315,11 @@ Cada MCI general se muestra en un bloque con:
   - Tira discreta de avance semanal: etiqueta "AVANCE SEM. N", valor, barra fina de 3px y meta semanal (sin badge — el color lo comunica la curva principal)
   - Divisor navy de 2px entre elementos consecutivos
 
+> **Avance semanal (campo independiente):** el avance de la semana es un dato que **se captura a mano** en Admin ("Avance sem. N" → `s.wigSem[id]`, vía `saveWigSem`), **independiente del acumulado**. Si está vacío, la tira muestra "—". No se deriva del acumulado — permite registrar el avance libremente aunque no cuadre con el total.
+
 ### Lógica del gráfico racetrack
 
-- **Línea ideal:** acumulación de `metaSem` por semana — `ideal(k) = inicio + metaSem × (k−1)`, topada en `meta`. Si la meta se alcanza antes de la última semana (53), la línea continúa plana hasta el final. **Regla de unidades:** `metaSem` solo se usa si está en la misma unidad que el acumulado (sin override `uniSem`); si el avance semanal se mide en otra unidad, el ritmo ideal se deriva como `(meta − inicio) / TOTAL_SEM`.
+- **Línea ideal:** recta directa de `(sem 1, inicio)` a `(última semana, meta)` — el ritmo constante necesario para alcanzar la meta al cierre del año. Siempre es una sola recta (no usa `metaSem` ni tramos planos, para evitar codos).
 - **Línea real:** rectas entre "anclas" — las semanas donde existe un valor guardado en `ST.semanas[k].wigs`. Sin historial intermedio, es una recta pura desde `inicio` (sem 1) hasta el valor actual en la semana en curso (equivale a dividir el avance entre las semanas transcurridas).
 - **Escala Y:** de `min(inicio, actual)` a `max(meta, actual, idealFinal)` — la curva real nunca se sale del área visible aunque supere la meta.
 
@@ -470,6 +478,14 @@ Un usuario sin permisos ve la evidencia en modo solo lectura.
 ---
 
 ## Historial de cambios
+
+### v2.9 — Valor sobre la línea + avance semanal derivado (jul 2026)
+
+- **Valor sobre el punto de avance** en el gráfico racetrack (`.wig-track-val`): etiqueta HTML superpuesta con el valor actual, en el color del semáforo.
+- **Avance semanal como campo independiente:** "Avance sem. N" es una captura manual en Admin (`s.wigSem[id]`), independiente del acumulado — se llena libremente y arranca vacío ("—"). (Se evaluó derivarlo del acumulado, pero se optó por mantenerlo independiente.) `wigTieneDatos` considera solo `wigs` (el semáforo es acumulado-based).
+- **Semáforo por avance hacia la meta:** el % de avance de cada elemento y del bloque pasó de `(actual − inicio) / (meta − inicio)` a **`actual / meta`** (topado 0–100). Así un valor por debajo del inicio ya no da porcentajes negativos y el semáforo refleja qué tan cerca está de la meta.
+
+---
 
 ### v2.8 — Diálogos de confirmación y toasts con variantes (jul 2026)
 

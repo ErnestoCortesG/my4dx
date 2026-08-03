@@ -39,6 +39,7 @@ function adminContribHTML() {
           <div style="font-size:12px;font-weight:700;color:var(--ink)">${esc(m.nombre)}</div>
           <div style="font-size:10px;color:var(--text-3)">${esc(m.cargo)}</div>
         </div>
+        <button type="button" class="mcont-del" onclick="delMiembro('${m.id}')" title="Eliminar este integrante y sus medidas">×</button>
       </div>
       <div class="mcont-mci">
         <label class="waelbl">MCI contributivo</label>
@@ -102,6 +103,25 @@ function toggleMciAlineado(mid, n, checked) {
   if (checked) { if (!m.mciAlineados.includes(n)) m.mciAlineados.push(n); }
   else { m.mciAlineados = m.mciAlineados.filter(x => x !== n); }
   guardarConfig();
+}
+
+// Elimina un integrante: su MCI contributivo y todas sus medidas predictivas.
+async function delMiembro(mid) {
+  const m = ST.miembros.find(x => x.id === mid);
+  if (!m) return;
+  const nPreds = (m.preds || []).length;
+  const ok = await confirmar({
+    titulo: 'Eliminar integrante',
+    mensaje: `¿Eliminar a "${m.nombre}"? Se borra su MCI contributivo y sus ${nPreds} medida(s) predictiva(s). Desaparecerá del panel lateral y del tablero. Esta acción no se puede deshacer.`,
+    ok: 'Eliminar', peligro: true,
+  });
+  if (!ok) return;
+  ST.miembros = ST.miembros.filter(x => x.id !== mid);
+  if (mActivo === mid) mActivo = 'todos';   // evita quedar en un perfil borrado
+  renderAdmin();
+  renderTablero();
+  guardarConfig();
+  toast(`Integrante "${m.nombre}" eliminado`, 'ok');
 }
 
 function savePredField(mid, pid, field, val) {

@@ -63,12 +63,12 @@ function getSem(n) {
   return ST.semanas[n];
 }
 
-// ¿El WIG tiene algún registro capturado (acumulado o avance semanal)?
+// ¿El WIG tiene algún valor acumulado capturado en alguna semana?
+// (El avance semanal se deriva del acumulado, ya no se captura por separado.)
 // Sin datos, el elemento se excluye de promedios y semáforos.
 function wigTieneDatos(wigId) {
   return Object.values(ST.semanas || {}).some(s =>
-    (s.wigs && s.wigs[wigId] !== undefined) ||
-    (s.wigSem && s.wigSem[wigId] != null)
+    s.wigs && s.wigs[wigId] !== undefined
   );
 }
 
