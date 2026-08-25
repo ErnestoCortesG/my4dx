@@ -311,17 +311,21 @@ Cada MCI general se muestra en un bloque con:
 - **Encabezado:** número, título, porcentaje promedio de avance de todos sus elementos y badge de semáforo
 - **Elementos:** una fila por WIG con:
   - Nombre, valor acumulado actual → meta y descripción (`sub`)
-  - **Gráfico racetrack** (`wigTrackSVG` en `render-tablero.js`): carriles horizontales alternados con dos trayectorias — línea punteada gris de meta ideal y línea sólida del color del semáforo con el avance real, terminada en un punto
-  - Tira discreta de avance semanal: etiqueta "AVANCE SEM. N", valor, barra fina de 3px y meta semanal (sin badge — el color lo comunica la curva principal)
+  - **Gráfico de barras mensual** (`wigBarrasMes` en `render-tablero.js`): una barra por mes con dato
   - Divisor navy de 2px entre elementos consecutivos
 
-> **Avance semanal (campo independiente):** el avance de la semana es un dato que **se captura a mano** en Admin ("Avance sem. N" → `s.wigSem[id]`, vía `saveWigSem`), **independiente del acumulado**. Si está vacío, la tira muestra "—". No se deriva del acumulado — permite registrar el avance libremente aunque no cuadre con el total.
+> El avance semanal por elemento (la tira "AVANCE SEM. N") se **eliminó del tablero**. El campo de captura manual "Avance sem." sigue existiendo en Admin (`s.wigSem` / `saveWigSem`) pero ya no se muestra en el Tablero MCI.
 
-### Lógica del gráfico racetrack
+### Lógica del gráfico de barras mensual (`wigBarrasMes`)
 
-- **Línea ideal:** recta directa de `(sem 1, inicio)` a `(última semana, meta)` — el ritmo constante necesario para alcanzar la meta al cierre del año. Siempre es una sola recta (no usa `metaSem` ni tramos planos, para evitar codos).
-- **Línea real:** rectas entre "anclas" — las semanas donde existe un valor guardado en `ST.semanas[k].wigs`. Sin historial intermedio, es una recta pura desde `inicio` (sem 1) hasta el valor actual en la semana en curso (equivale a dividir el avance entre las semanas transcurridas).
-- **Escala Y:** de `min(inicio, actual)` a `max(meta, actual, idealFinal)` — la curva real nunca se sale del área visible aunque supere la meta.
+Reemplazó al antiguo gráfico racetrack (semanal). Muestra el avance **por mes** del año 2026:
+
+- **Barra** = valor **acumulado a la última semana del mes** (`getWigVal` en la última semana del mes, topada en la semana en curso). Coloreada con el **semáforo del elemento** (verde/amarillo/rojo según `actual/meta`).
+- **Carril tenue** detrás de cada barra = **ritmo ideal** del mes = `meta × (mes / 12)` (reparto lineal, llega a la meta en diciembre). La brecha barra↔carril muestra qué tan atrás va del ritmo.
+- **Línea de meta** punteada (color `--cta`) al nivel de la meta, con etiqueta "meta N".
+- **Solo se dibujan los meses con captura explícita**; los meses sin dato quedan vacíos (solo su etiqueta atenuada).
+- **Valor** encima de cada barra. **Mes resaltado** con borde navy: el mes en curso si tiene dato, si no el último mes con dato.
+- Escala vertical a la meta (`vmax = max(meta, actual)`). El mapeo semana→mes vive en `data.js` (`MES_DE_SEM`, `ULTIMA_SEM_MES`).
 
 ---
 

@@ -20,6 +20,26 @@ const SEMANAS = (() => {
 })();
 const TOTAL_SEM = SEMANAS.length - 1;
 
+// Mes (0–11) al que pertenece cada semana según su fecha de FIN (domingo), y la
+// última semana de cada mes — para agregar los valores semanales a nivel mensual.
+const MES_DE_SEM = [null];        // MES_DE_SEM[nSemana] = 0..11
+const ULTIMA_SEM_MES = {};        // { mes(0-11): nSemana de la última semana del mes }
+(() => {
+  let ini = new Date(2026, 0, 1), wk = 0;
+  while (ini.getFullYear() === 2026) {
+    wk++;
+    const dow = ini.getDay() === 0 ? 7 : ini.getDay();
+    let fin = new Date(ini);
+    fin.setDate(fin.getDate() + (7 - dow));
+    if (fin.getFullYear() !== 2026) fin = new Date(2026, 11, 31);
+    const mes = fin.getMonth();
+    MES_DE_SEM[wk] = mes;
+    ULTIMA_SEM_MES[mes] = wk;      // la última asignada queda como última semana del mes
+    ini = new Date(fin);
+    ini.setDate(ini.getDate() + 1);
+  }
+})();
+
 // Semana de calendario correspondiente a la fecha de hoy (1–TOTAL_SEM)
 function semanaActual() {
   const hoy = new Date();
@@ -105,6 +125,28 @@ const WB = [
   {id:'cl', label:'Claves nuevas acum.', inicio:591,   meta:1000, uni:' claves', mci:2, sub:'Click: 486 · Aseg.: 105/135'},
   {id:'cv', label:'Claves con venta 90d',inicio:28,    meta:350,  uni:' claves', mci:2, sub:'Meta: 35% del total'}
 ];
+
+// ── MCI generales de un integrante ────────────────────────────────────────
+// Unión de los MCI generales de todos sus MCI contributivos (fuente de verdad
+// de la alineación; ya no existe alineación manual a nivel integrante).
+function mcisDeIntegrante(m) {
+  return [...new Set((m.contributivos || []).flatMap(c => c.mciAlineados || []))].sort((a, b) => a - b);
+}
+
+// ── Etiqueta de MCI generales alineados ──────────────────────────────────
+// La etiqueta de cada integrante se DERIVA de los MCI generales de sus
+// contributivos, no se guarda como texto fijo. Devuelve { texto, tc } donde
+// `tc` es la clase de color (.tc/.tr/.ts/.ta/.tn definidas en styles.css).
+function etiquetaMCI(m) {
+  const nums  = [...new Set(ST.wigs.map(w => w.mci))].sort((a, b) => a - b);
+  const al    = mcisDeIntegrante(m).filter(n => nums.includes(n));
+  const COLS  = ['tc', 'tr', 'ts', 'ta'];          // color por número de MCI (cíclico)
+  const corto = n => (ST.mciTitulos?.[n] || `MCI ${n}`).split(' ')[0];
+  if (al.length === 0)                       return { texto: 'Sin alinear',   tc: 'tn' };
+  if (al.length === 1)                       return { texto: corto(al[0]),    tc: COLS[(al[0] - 1) % COLS.length] };
+  if (nums.length > 1 && al.length === nums.length) return { texto: 'Todos los MCIs', tc: 'ta' };
+  return { texto: al.map(corto).join('+'), tc: 'ta' };
+}
 
 // Los usuarios y sus contraseñas viven ahora en el servidor (tabla `users`,
 // contraseñas hasheadas). El cliente los obtiene vía /api/users (solo admin)

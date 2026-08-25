@@ -48,16 +48,27 @@ function predAcumVal(predId) {
   }, 0);
 }
 
-// ── Score acumulativo de MCI contributivo ─────────────────────────────────
-// Para cada predictiva acumula el total de todas las semanas vs la meta anual.
-function predScoreAcum(m) {
-  if (!m.preds || !m.preds.length) return null;
-  const pcts = m.preds.map(p => {
-    const acum = predAcumVal(p.id);
-    if (!acum) return null;
-    return Math.min(100, Math.round(acum / p.meta * 100));
+// ── Score de UN MCI contributivo ──────────────────────────────────────────
+// Promedio de los % de sus medidas (cada una: valor actual manual vs meta).
+// Ignora medidas sin valor; null si ninguna tiene.
+function contribScoreAcum(c) {
+  const preds = (c && c.preds) || [];
+  const pcts = preds.map(p => {
+    const a = parseFloat(p.actual);
+    if (isNaN(a) || a <= 0) return null;
+    return Math.min(100, Math.round(a / p.meta * 100));
   }).filter(x => x !== null);
   return pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+}
+
+// ── Score acumulativo del INTEGRANTE ───────────────────────────────────────
+// Promedio de los scores de sus contributivos (cada contributivo pesa igual).
+// Ignora contributivos sin datos; null si ninguno tiene.
+function predScoreAcum(m) {
+  const scores = (m.contributivos || [])
+    .map(c => contribScoreAcum(c))
+    .filter(x => x !== null);
+  return scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
 }
 
 

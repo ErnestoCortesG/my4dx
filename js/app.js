@@ -13,13 +13,11 @@ function flushPredInputs() {
   if (pagina !== 'perfil') return;
   let cambio = false;
   document.querySelectorAll('#perfil-content .pinp').forEach(function(inp) {
-    var v = inp.value.trim();
-    if (v !== '' && inp.dataset.predId) {
-      getSem(sem).preds[inp.dataset.predId] = parseFloat(v);
+    if (inp.dataset.predId && setPredActualRaw(inp.dataset.predId, inp.value.trim())) {
       cambio = true;
     }
   });
-  if (cambio) guardarSemana(sem);
+  if (cambio) guardarConfig();
 }
 
 function semAnterior()  { if (sem > 1)  { flushPredInputs(); sem--; renderAll(); } }

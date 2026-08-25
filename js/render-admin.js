@@ -25,7 +25,7 @@ function renderAdmin() {
     <div class="acard">
       <div class="achdr">
         <h3>MCI contributivos por integrante</h3>
-        <button type="button" class="bconfirm" style="padding:5px 10px;font-size:11px" onclick="openContrib()">+ Nuevo MCI contributivo</button>
+        <button type="button" class="bconfirm" style="padding:5px 10px;font-size:11px" onclick="openMiembro()">+ Nuevo integrante</button>
       </div>
       ${adminContribHTML()}
     </div>`;

@@ -3,68 +3,82 @@
 // y gestiona su edición, más el modal "Nuevo MCI contributivo".
 
 function adminContribHTML() {
+  const mciNums = [...new Set(ST.wigs.map(w => w.mci))].sort((a,b) => a-b);
   return ST.miembros.map(m => {
-    const predRows = (m.preds || []).map(p => {
-      return `<div class="predrow" data-pid="${p.id}">
-        <input type="text" class="predinp predinp-lbl" autocomplete="off"
-          value="${esc(p.label||'')}" placeholder="Nombre de la medida"
-          onchange="savePredField('${m.id}','${p.id}','label',this.value)">
-        <input type="number" class="predinp predinp-num" value="${p.meta}"
-          placeholder="Meta" title="Meta"
-          onchange="savePredField('${m.id}','${p.id}','meta',parseFloat(this.value)||0)">
-        <input type="text" class="predinp predinp-uni" autocomplete="off"
-          value="${esc(p.uni||'')}" placeholder="Unidad"
-          onchange="savePredField('${m.id}','${p.id}','uni',this.value)">
-        <button type="button" class="preddel" onclick="delPred('${m.id}','${p.id}')" title="Eliminar medida">×</button>
-      </div>`;
-    }).join('');
-
     const ini = m.nombre.split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
-    const mciNums = [...new Set(ST.wigs.map(w => w.mci))].sort((a,b) => a-b);
-    const alineados = m.mciAlineados || [];
-    const mciChecks = mciNums.map(n => {
-      const tit = esc(ST.mciTitulos?.[n] || `MCI ${n}`);
-      const checked = alineados.includes(n) ? ' checked' : '';
-      return `<label class="mci-check-lbl">
-        <input type="checkbox" value="${n}"${checked}
-          onchange="toggleMciAlineado('${m.id}',${n},this.checked)">
-        <span>MCI ${n} · ${tit}</span>
-      </label>`;
+
+    // Un sub-bloque por MCI contributivo: MCI general(es) al que pertenece +
+    // nombre editable + sus medidas.
+    const contribBlks = (m.contributivos || []).map(c => {
+      const cAl = c.mciAlineados || [];
+      const mciChecks = mciNums.map(n => {
+        const tit = esc(ST.mciTitulos?.[n] || `MCI ${n}`);
+        const checked = cAl.includes(n) ? ' checked' : '';
+        return `<label class="mci-check-lbl">
+          <input type="checkbox" value="${n}"${checked}
+            onchange="toggleContribMci('${m.id}','${c.id}',${n},this.checked)">
+          <span>MCI ${n} · ${tit}</span>
+        </label>`;
+      }).join('');
+      const predRows = (c.preds || []).map(p => {
+        return `<div class="predrow" data-pid="${p.id}">
+          <input type="text" class="predinp predinp-lbl" autocomplete="off"
+            value="${esc(p.label||'')}" placeholder="Nombre de la medida"
+            onchange="savePredField('${m.id}','${c.id}','${p.id}','label',this.value)">
+          <input type="number" class="predinp predinp-num" value="${p.meta}"
+            placeholder="Meta" title="Meta"
+            onchange="savePredField('${m.id}','${c.id}','${p.id}','meta',parseFloat(this.value)||0)">
+          <input type="text" class="predinp predinp-uni" autocomplete="off"
+            value="${esc(p.uni||'')}" placeholder="Unidad"
+            onchange="savePredField('${m.id}','${c.id}','${p.id}','uni',this.value)">
+          <button type="button" class="preddel" onclick="delPred('${m.id}','${c.id}','${p.id}')" title="Eliminar medida">×</button>
+        </div>`;
+      }).join('');
+
+      return `<div class="ccontrib-blk">
+        <div class="ccontrib-hdr">
+          <input type="text" class="waeinp" autocomplete="off"
+            value="${esc(c.nombre||'')}" placeholder="Nombre del MCI contributivo"
+            onchange="saveContribNombre('${m.id}','${c.id}',this.value)">
+          <button type="button" class="waedel" onclick="delContrib('${m.id}','${c.id}')" title="Eliminar este MCI contributivo">×</button>
+        </div>
+        <div class="ccontrib-mci">
+          <label class="waelbl">Pertenece a MCI general</label>
+          <div class="mci-checks-wrap">${mciChecks}</div>
+        </div>
+        <div class="mcont-preds">
+          <div class="predrow predrow-hdr">
+            <span class="waelbl" style="flex:1">Medida</span>
+            <span class="waelbl" style="width:60px">Meta</span>
+            <span class="waelbl" style="width:52px">Unidad</span>
+            <span style="width:22px"></span>
+          </div>
+          ${predRows || '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin medidas — usa "+ Agregar medida"</div>'}
+        </div>
+        <button type="button" class="waeadd" style="font-size:10px;padding:3px 8px;margin-top:6px"
+          onclick="addPredToContrib('${m.id}','${c.id}')">+ Agregar medida</button>
+      </div>`;
     }).join('');
 
     return `<div class="mcont-blk">
       <div class="mcont-hdr">
         <div class="mav" style="background:${m.color};width:30px;height:30px;font-size:11px">${esc(ini)}</div>
-        <div>
-          <div style="font-size:12px;font-weight:700;color:var(--ink)">${esc(m.nombre)}</div>
-          <div style="font-size:10px;color:var(--text-3)">${esc(m.cargo)}</div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0">
+          <input type="text" class="waeinp" autocomplete="off" value="${esc(m.nombre)}"
+            placeholder="Nombre completo" style="font-size:12px;font-weight:700;padding:3px 6px"
+            onchange="saveMiembroNombre('${m.id}',this.value)">
+          <input type="text" class="waeinp" autocomplete="off" value="${esc(m.cargo || '')}"
+            placeholder="Cargo / Área" style="font-size:10px;padding:2px 6px"
+            onchange="saveMiembroCargo('${m.id}',this.value)">
         </div>
         <button type="button" class="mcont-del" onclick="delMiembro('${m.id}')" title="Eliminar este integrante y sus medidas">×</button>
       </div>
-      <div class="mcont-mci">
-        <label class="waelbl">MCI contributivo</label>
-        <input type="text" class="waeinp" autocomplete="off"
-          value="${esc(m.mci||'')}" placeholder="Descripción del MCI de este integrante"
-          onchange="saveMiembroMCI('${m.id}',this.value)">
-      </div>
-      <div class="mcont-mci" style="margin-top:6px">
-        <label class="waelbl">Alineado a MCI general</label>
-        <div class="mci-checks-wrap">${mciChecks}</div>
-      </div>
       <div class="mcont-preds-hdr">
-        <span class="waelbl" style="line-height:2">Medidas predictivas</span>
+        <span class="waelbl" style="line-height:2">MCI contributivos</span>
         <button type="button" class="waeadd" style="font-size:10px;padding:3px 8px"
-          onclick="addPredToMiembro('${m.id}')">+ Agregar medida</button>
+          onclick="openContrib('${m.id}')">+ Nuevo MCI contributivo</button>
       </div>
-      <div class="mcont-preds" id="preds-${m.id}">
-        <div class="predrow predrow-hdr">
-          <span class="waelbl" style="flex:1">Medida</span>
-          <span class="waelbl" style="width:60px">Meta</span>
-          <span class="waelbl" style="width:52px">Unidad</span>
-          <span style="width:22px"></span>
-        </div>
-        ${predRows || '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin medidas — usa "+ Agregar medida"</div>'}
-      </div>
+      ${contribBlks || '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin MCI contributivos — usa "+ Nuevo MCI contributivo".</div>'}
     </div>`;
   }).join('');
 }
@@ -82,26 +96,113 @@ function _mciOpts() {
   });
   base.push({ val:'Soporte 4DX', lbl:'Soporte 4DX' });
   base.push({ val:'Ambos MCIs',  lbl:'Ambos MCIs'  });
-  // Incluir cualquier valor ya existente en preds que no esté en la lista generada
-  const vals = new Set(base.map(o => o.val));
-  ST.miembros.forEach(m => (m.preds||[]).forEach(p => {
-    if (p.mci && !vals.has(p.mci)) { base.push({ val:p.mci, lbl:p.mci }); vals.add(p.mci); }
-  }));
   return base;
 }
 
-function saveMiembroMCI(mid, texto) {
+// Renombra un MCI contributivo de un integrante.
+function saveContribNombre(mid, cid, texto) {
   const m = ST.miembros.find(x => x.id === mid);
-  if (m) m.mci = texto;
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  if (c) c.nombre = texto;
+  renderTablero();
   guardarConfig();
 }
 
-function toggleMciAlineado(mid, n, checked) {
+// Elimina un MCI contributivo completo (con sus medidas) de un integrante.
+async function delContrib(mid, cid) {
+  const m = ST.miembros.find(x => x.id === mid);
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  if (!c) return;
+  const ok = await confirmar({
+    titulo: 'Eliminar MCI contributivo',
+    mensaje: `¿Eliminar "${c.nombre || 'este MCI contributivo'}" y sus ${(c.preds||[]).length} medida(s)? Esta acción no se puede deshacer.`,
+    ok: 'Eliminar', peligro: true,
+  });
+  if (!ok) return;
+  m.contributivos = (m.contributivos || []).filter(x => x.id !== cid);
+  renderAdmin();
+  renderTablero();
+  guardarConfig();
+  toast('MCI contributivo eliminado', 'ok');
+}
+
+// Alinea/desalinea un MCI contributivo a un MCI general. La etiqueta del
+// integrante se deriva de la unión de estos → refrescar tablero/perfil.
+function toggleContribMci(mid, cid, n, checked) {
+  const m = ST.miembros.find(x => x.id === mid);
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  if (!c) return;
+  if (!c.mciAlineados) c.mciAlineados = [];
+  if (checked) { if (!c.mciAlineados.includes(n)) c.mciAlineados.push(n); }
+  else { c.mciAlineados = c.mciAlineados.filter(x => x !== n); }
+  renderTablero();
+  guardarConfig();
+}
+
+// Abre el modal para crear un integrante nuevo (nombre, cargo, color).
+// La alineación a MCI generales ya no se captura aquí: vive en cada MCI
+// contributivo que se agregue después.
+function openMiembro() {
+  document.getElementById('mi-nom').value   = '';
+  document.getElementById('mi-cargo').value = '';
+  document.getElementById('mi-color').value = '#041224';
+  document.getElementById('m-miembro').classList.add('open');
+}
+
+// Crea el integrante en ST.miembros y persiste con guardarConfig().
+// La etiqueta se deriva en render (etiquetaMCI) de los MCI de sus contributivos.
+function saveMiembro() {
+  const nombre = document.getElementById('mi-nom').value.trim();
+  const cargo  = document.getElementById('mi-cargo').value.trim();
+  const color  = document.getElementById('mi-color').value || '#041224';
+  if (!nombre) { toast('Escribe un nombre', 'warn'); return; }
+  // Iniciales: 1ª letra de las dos primeras palabras; si es una sola, sus 2 primeras letras.
+  const palabras = nombre.split(/\s+/).filter(Boolean);
+  const ini = (palabras.length >= 2
+    ? palabras[0][0] + palabras[1][0]
+    : nombre.slice(0, 2)).toUpperCase();
+  ST.miembros.push({ id: uid(), nombre, cargo, ini, color, contributivos: [] });
+  closeModal('m-miembro');
+  renderAdmin();
+  renderTablero();
+  guardarConfig();
+  toast('Integrante agregado', 'ok');
+}
+
+// Edita el NOMBRE de un integrante y propaga el cambio a todo lo relacionado:
+// re-deriva las iniciales del avatar y actualiza el "líder" en los compromisos
+// guardados (todas las semanas). Sidebar, tablero y perfil se refrescan.
+function saveMiembroNombre(mid, val) {
   const m = ST.miembros.find(x => x.id === mid);
   if (!m) return;
-  if (!m.mciAlineados) m.mciAlineados = [];
-  if (checked) { if (!m.mciAlineados.includes(n)) m.mciAlineados.push(n); }
-  else { m.mciAlineados = m.mciAlineados.filter(x => x !== n); }
+  const nuevo = (val || '').trim();
+  if (!nuevo) { toast('El nombre no puede quedar vacío', 'warn'); renderAdmin(); return; }
+  const viejo = m.nombre;
+  if (nuevo === viejo) return;
+  m.nombre = nuevo;
+  // Re-derivar iniciales del avatar
+  const pal = nuevo.split(/\s+/).filter(Boolean);
+  m.ini = (pal.length >= 2 ? pal[0][0] + pal[1][0] : nuevo.slice(0, 2)).toUpperCase();
+  // Actualizar el líder en los compromisos guardados que referían el nombre viejo
+  const tocadas = [];
+  Object.entries(ST.semanas || {}).forEach(([wk, s]) => {
+    let ch = false;
+    (s.comps || []).forEach(c => { if (c.lider === viejo) { c.lider = nuevo; ch = true; } });
+    if (ch) tocadas.push(parseInt(wk));
+  });
+  renderAll();
+  guardarConfig();
+  tocadas.forEach(k => guardarSemana(k));
+  toast('Integrante actualizado', 'ok');
+}
+
+// Edita el CARGO/área de un integrante. Se muestra en sidebar, tablero, perfil
+// y admin — todos leen ST, así que basta con re-renderizar y persistir.
+function saveMiembroCargo(mid, val) {
+  const m = ST.miembros.find(x => x.id === mid);
+  if (!m) return;
+  m.cargo = (val || '').trim();
+  renderAll();
   guardarConfig();
 }
 
@@ -109,10 +210,11 @@ function toggleMciAlineado(mid, n, checked) {
 async function delMiembro(mid) {
   const m = ST.miembros.find(x => x.id === mid);
   if (!m) return;
-  const nPreds = (m.preds || []).length;
+  const nContrib = (m.contributivos || []).length;
+  const nPreds = (m.contributivos || []).reduce((t, c) => t + (c.preds || []).length, 0);
   const ok = await confirmar({
     titulo: 'Eliminar integrante',
-    mensaje: `¿Eliminar a "${m.nombre}"? Se borra su MCI contributivo y sus ${nPreds} medida(s) predictiva(s). Desaparecerá del panel lateral y del tablero. Esta acción no se puede deshacer.`,
+    mensaje: `¿Eliminar a "${m.nombre}"? Se borran sus ${nContrib} MCI contributivo(s) y ${nPreds} medida(s) predictiva(s). Desaparecerá del panel lateral y del tablero. Esta acción no se puede deshacer.`,
     ok: 'Eliminar', peligro: true,
   });
   if (!ok) return;
@@ -124,49 +226,55 @@ async function delMiembro(mid) {
   toast(`Integrante "${m.nombre}" eliminado`, 'ok');
 }
 
-function savePredField(mid, pid, field, val) {
+function savePredField(mid, cid, pid, field, val) {
   const m = ST.miembros.find(x => x.id === mid);
-  if (!m) return;
-  const p = (m.preds || []).find(x => x.id === pid);
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  const p = c && (c.preds || []).find(x => x.id === pid);
   if (p) p[field] = val;
   renderTablero();
   guardarConfig();
 }
 
-async function delPred(mid, pid) {
+async function delPred(mid, cid, pid) {
   const m = ST.miembros.find(x => x.id === mid);
-  if (!m) return;
-  const p = (m.preds || []).find(x => x.id === pid);
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  if (!c) return;
+  const p = (c.preds || []).find(x => x.id === pid);
   const ok = await confirmar({
     titulo: 'Eliminar medida predictiva',
     mensaje: `¿Eliminar la medida${p && p.label ? ` "${p.label}"` : ''}? Se borra junto con sus valores capturados.`,
     ok: 'Eliminar', peligro: true,
   });
   if (!ok) return;
-  m.preds = (m.preds || []).filter(x => x.id !== pid);
+  c.preds = (c.preds || []).filter(x => x.id !== pid);
   renderAdmin();
   renderTablero();
   guardarConfig();
   toast('Medida eliminada', 'ok');
 }
 
-function addPredToMiembro(mid) {
+function addPredToContrib(mid, cid) {
   const m = ST.miembros.find(x => x.id === mid);
-  if (!m) return;
-  if (!m.preds) m.preds = [];
-  m.preds.push({ id: uid(), label: 'Nueva medida', meta: 100, uni: '%', mci: 'Ambos MCIs' });
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  if (!c) return;
+  if (!c.preds) c.preds = [];
+  c.preds.push({ id: uid(), label: 'Nueva medida', meta: 100, uni: '%' });
   renderAdmin();
   renderTablero();
   guardarConfig();
 }
 
 // ── Modal Nuevo MCI contributivo ──
-function openContrib() {
+// Crea SIEMPRE un contributivo nuevo en el integrante elegido (no sobre-escribe
+// los existentes). Se abre desde el botón dentro del bloque de cada integrante,
+// que preselecciona ese integrante (preMid) para no agregarlo al equivocado.
+function openContrib(preMid) {
   document.getElementById('mc-mid').innerHTML =
     ST.miembros.map(m => `<option value="${m.id}">${esc(m.nombre)} — ${esc(m.cargo)}</option>`).join('');
+  if (preMid) document.getElementById('mc-mid').value = preMid;
   document.getElementById('mc-nom').value = '';
   document.getElementById('mc-preds-rows').innerHTML = '';
-  // Generar checkboxes de MCIs generales
+  // Checkboxes: a qué MCI general(es) pertenece este contributivo
   const mciNums = [...new Set(ST.wigs.map(w => w.mci))].sort((a,b) => a-b);
   document.getElementById('mc-mci-checks').innerHTML = mciNums.map(n => {
     const tit = esc(ST.mciTitulos?.[n] || `MCI ${n}`);
@@ -196,31 +304,32 @@ function saveContrib() {
   const mid = document.getElementById('mc-mid').value;
   const nom = document.getElementById('mc-nom').value.trim();
   if (!mid) { toast('Selecciona un integrante', 'warn'); return; }
+  if (!nom) { toast('Escribe el nombre del MCI contributivo', 'warn'); return; }
 
   const m = ST.miembros.find(x => x.id === mid);
   if (!m) return;
 
-  // Actualizar MCI contributivo si se capturó nombre
-  if (nom) m.mci = nom;
-
-  // Leer checkboxes de alineación a MCIs generales
-  const checks = document.querySelectorAll('#mc-mci-checks input[type=checkbox]');
-  m.mciAlineados = [];
-  checks.forEach(cb => { if (cb.checked) m.mciAlineados.push(parseInt(cb.value)); });
-
-  // Leer todas las filas de medidas del modal
-  const filas = document.querySelectorAll('#mc-preds-rows .predrow');
-  filas.forEach(row => {
+  // Construir las medidas nuevas desde las filas del modal
+  const preds = [];
+  document.querySelectorAll('#mc-preds-rows .predrow').forEach(row => {
     const label = row.querySelector('.predinp-lbl').value.trim();
     if (!label) return; // omitir filas vacías
     const meta = parseFloat(row.querySelector('.predinp-num').value) || 0;
     const uni  = row.querySelector('.predinp-uni').value.trim();
-    if (!m.preds) m.preds = [];
-    m.preds.push({ id: uid(), label, meta, uni, mci: 'Ambos MCIs' });
+    preds.push({ id: uid(), label, meta, uni });
   });
+
+  // MCI general(es) al que pertenece este contributivo
+  const mciAlineados = [...document.querySelectorAll('#mc-mci-checks input:checked')]
+    .map(cb => parseInt(cb.value));
+
+  // Crear SIEMPRE un contributivo nuevo (nunca sobre-escribe los existentes)
+  if (!m.contributivos) m.contributivos = [];
+  m.contributivos.push({ id: uid(), nombre: nom, mciAlineados, preds });
 
   closeModal('m-contrib');
   renderAdmin();
   renderTablero();
   guardarConfig();
+  toast('MCI contributivo agregado', 'ok');
 }

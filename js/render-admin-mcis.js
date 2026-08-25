@@ -36,23 +36,6 @@ function adminMCIsHTML() {
             title="Valor acumulado a esta semana."
             onchange="saveWigActual('${w.id}',parseFloat(this.value)||0)">
         </div>
-        <div class="waefield waefield-num">
-          <label class="waelbl">Avance sem. ${sem}</label>
-          <input type="number" class="waeinp" value="${s.wigSem[w.id] ?? ''}" placeholder="—"
-            title="Avance de esta semana. Campo independiente, se captura libremente."
-            onchange="saveWigSem('${w.id}',this.value)">
-        </div>
-        <div class="waefield waefield-uni">
-          <label class="waelbl">Unidad avance sem.</label>
-          <input type="text" class="waeinp" autocomplete="off" value="${esc(w.uniSem||'')}" placeholder="${esc(w.uni)}"
-            onchange="saveWigField('${w.id}','uniSem',this.value)">
-        </div>
-        <div class="waefield waefield-num">
-          <label class="waelbl">Meta semanal</label>
-          <input type="number" class="waeinp" value="${w.metaSem ?? ''}" placeholder="auto"
-            title="Meta de avance por semana. Si se deja vacío se calcula como (Meta − Inicio) ÷ 53 (semanas del año)."
-            onchange="saveWigField('${w.id}','metaSem',this.value===''?null:parseFloat(this.value)||0)">
-        </div>
         <div class="waefield waefield-sub">
           <label class="waelbl">Descripción</label>
           <input type="text" class="waeinp" autocomplete="off" value="${esc(w.sub||'')}"
@@ -111,20 +94,6 @@ function saveWigActual(id, val) {
   s.wigs[id] = val;
   if (!s.wigsExplicit) s.wigsExplicit = {};
   s.wigsExplicit[id] = true;
-  renderTablero();
-  guardarSemana(sem);
-}
-
-// Avance semanal manual e independiente del acumulado.
-function saveWigSem(id, val) {
-  const s = getSem(sem);
-  if (!s.wigSem) s.wigSem = {};
-  const n = parseFloat(val);
-  if (val === '' || val === null) {
-    delete s.wigSem[id];
-  } else {
-    s.wigSem[id] = isNaN(n) ? 0 : n;
-  }
   renderTablero();
   guardarSemana(sem);
 }

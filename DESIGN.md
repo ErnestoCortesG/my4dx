@@ -206,9 +206,7 @@ Hover: `translateY(-1px)` + shadow. Las tarjetas con semáforo llevan `border-to
         └── .wmeta             meta semanal
 ```
 
-**Gráfico racetrack** (`wigTrackSVG()` en `render-tablero.js`): SVG `viewBox 0 0 560 56` con `preserveAspectRatio="none"`. Carriles alternados `rgba(5,23,46,.05)`; línea de meta ideal punteada (`#999`, dasharray 4 3): recta directa de `(sem 1, inicio)` a `(última semana, meta)` — sin codos; línea de avance real (2.2px, color del semáforo — `--green`/`--yellow`/`--cta`) con `vector-effect: non-scaling-stroke` y punto final (r 4.5, borde blanco). Sin historial intermedio la línea real es una recta `inicio → actual`.
-
-**Valor sobre el punto de avance** (`.wig-track-val`): el valor actual se muestra como etiqueta HTML **superpuesta** (no dentro del SVG, para evitar la distorsión del `preserveAspectRatio="none"`), posicionada por `left:%` + `top:px` sobre el punto final, en el color oscuro del semáforo (`--green-dk`/`--yellow-dk`/`--red-dk`). Se re-alinea cerca de los bordes (izquierda/derecha) y se coloca debajo del punto si está muy arriba. Muestra `%` solo cuando la unidad es porcentaje; se omite si el elemento no tiene datos.
+**Gráfico de barras mensual** (`wigBarrasMes()` en `render-tablero.js`): SVG `viewBox 0 0 360 120` con escala uniforme (`.wig-bar-svg` a `width:100%;height:auto`, sin distorsión de texto). Una barra por mes con dato = acumulado a la última semana del mes, coloreada con el semáforo del elemento (`--green`/`--yellow`/`--cta`); carril tenire `rgba(5,23,46,.07)` detrás = ritmo ideal (`meta × mes/12`); valor encima en el color oscuro del semáforo (`--green-dk`/`--yellow-dk`/`--red-dk`); baseline y etiqueta `meta N`; mes resaltado con borde `--navy`. Meses sin captura quedan vacíos (etiqueta atenuada). Mapeo semana→mes en `data.js`.
 
 **Separación entre elementos:** `.wig-pair + .wig-pair { border-top: 2px solid var(--mid) }` — sin fondos alternados; la tira semanal se separa de su gráfico con `border-top: 1px dashed var(--border)`.
 

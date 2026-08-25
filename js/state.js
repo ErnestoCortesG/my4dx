@@ -172,8 +172,11 @@ async function loadState() {
   try {
     const raw    = localStorage.getItem('4dx-clickseguros-2026');
     const parsed = raw ? JSON.parse(raw) : null;
-    if (parsed && parsed.wigs) { ST = parsed; _migrarST(); }
+    if (parsed && parsed.wigs) { ST = parsed; _migrarST(); return; }
   } catch (_) {}
+
+  // 3. Datos de fábrica (MB/WB ya están en ST): normalizar al modelo vigente.
+  _migrarST();
 }
 
 function _migrarST() {
@@ -183,9 +186,22 @@ function _migrarST() {
   if (!ST.mciTitulos) {
     ST.mciTitulos = { 1: 'Conservación de agentes', 2: 'Recluta de claves' };
   }
-  // Reparar medidas predictivas sin MCI asignado (crasheaban renderPerfil)
+  // Migrar al modelo de VARIOS MCI contributivos por integrante.
+  // Antes: m.mci (nombre único) + m.preds (lista plana). Ahora:
+  // m.contributivos = [{ id, nombre, preds:[{id,label,meta,uni}] }].
+  // Los ids de medida se conservan → los valores semanales (ST.semanas[*].preds[id])
+  // siguen válidos. El campo p.mci queda obsoleto y se descarta.
   (ST.miembros || []).forEach(m => {
-    (m.preds || []).forEach(p => { if (!p.mci) p.mci = 'Ambos MCIs'; });
+    if (!m.contributivos) {
+      const legacyPreds = (m.preds || []).map(p => ({
+        id: p.id, label: p.label, meta: p.meta, uni: p.uni,
+      }));
+      m.contributivos = (m.mci || legacyPreds.length)
+        ? [{ id: uid(), nombre: m.mci || 'MCI contributivo', preds: legacyPreds }]
+        : [];
+      delete m.mci;
+      delete m.preds;
+    }
   });
   // Migrar numeración de semanas al calendario anual (S1 = 1 ene 2026).
   // El esquema anterior arrancaba en S1 = 29 jun, que equivale a la S27
@@ -203,12 +219,34 @@ function _migrarST() {
     ST.semanas = nuevo;
     ST._semCal = true;
   }
-  // Migrar mciAlineados: copiar del seed MB para miembros que aún no lo tienen
+  // Migrar mciAlineados: copiar del seed MB para miembros que aún no lo tienen.
+  // (Se conserva a nivel integrante solo como semilla para los contributivos;
+  // la alineación real vive ahora en cada contributivo.)
   ST.miembros.forEach(m => {
     if (!m.mciAlineados) {
       const seed = MB.find(x => x.id === m.id);
       m.mciAlineados = seed?.mciAlineados ? [...seed.mciAlineados] : [];
     }
+  });
+  // La alineación a MCI generales ahora vive por MCI contributivo.
+  // Para contributivos sin `mciAlineados`, sembrar desde el nivel integrante.
+  ST.miembros.forEach(m => {
+    (m.contributivos || []).forEach(c => {
+      if (!c.mciAlineados) c.mciAlineados = [...(m.mciAlineados || [])];
+    });
+  });
+  // Cada medida predictiva ahora tiene un valor único `actual` (manual), no un
+  // acumulado semanal. Sembrar `actual` desde el acumulado existente para no
+  // perder el progreso ya capturado.
+  ST.miembros.forEach(m => {
+    (m.contributivos || []).forEach(c => {
+      (c.preds || []).forEach(p => {
+        if (p.actual === undefined) {
+          const acum = predAcumVal(p.id);
+          if (acum > 0) p.actual = acum;
+        }
+      });
+    });
   });
   // Migrar wigSem: garantizar que todas las semanas existentes tengan el campo
   Object.values(ST.semanas || {}).forEach(s => {

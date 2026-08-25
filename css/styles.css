@@ -166,9 +166,8 @@ body{font-size:13px;color:#1a1a18;min-height:100vh;background:var(--bg)}
 .wig-av-hero{font-size:26px;font-weight:900;line-height:1;margin:4px 0 6px;display:flex;align-items:baseline;gap:6px}
 .wig-av-lbl{font-size:9px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em}
 .wig-val-row{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}
-.wig-track{margin:4px 0 2px;position:relative}
-.wig-track-svg{width:100%;height:56px;display:block;border-radius:4px}
-.wig-track-val{position:absolute;font-size:11px;font-weight:800;line-height:1;white-space:nowrap;pointer-events:none}
+.wig-track{margin:6px 0 2px}
+.wig-bar-svg{width:80%;height:auto;display:block;margin:0 auto}
 .wig-semline{display:flex;align-items:center;gap:8px;padding:6px 14px 10px;border-top:1px dashed var(--border)}
 .wig-semline-lbl{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
 .wig-sem-val{font-size:13px;font-weight:800;color:var(--navy);flex-shrink:0}
@@ -193,6 +192,7 @@ body{font-size:13px;color:#1a1a18;min-height:100vh;background:var(--bg)}
 .pblock{background:var(--surface);border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:12px}
 .pbhdr{background:var(--surf2);padding:9px 14px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between}
 .pbhdr h3{font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.04em}
+.ptbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.ptbl{width:100%;border-collapse:collapse}
 table.ptbl th{font-size:10px;color:var(--text-3);font-weight:600;text-align:left;padding:7px 14px 5px;border-bottom:1px solid #eee}
 table.ptbl td{padding:8px 14px;border-bottom:1px solid var(--surf3);font-size:12px;vertical-align:middle}
@@ -212,6 +212,7 @@ table.ptbl tr:hover td{background:#fafaf8}
 .tag{padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700}
 .tc{background:var(--green-bg);color:var(--green-dk)}.tr{background:#e3f2fd;color:#1565c0}
 .ta{background:#f3e5f5;color:#6a1b9a}.ts{background:#fff3e0;color:#e65100}
+.tn{background:#eceff1;color:#607d8b}
 
 /* COMPROMISOS */
 .cblock{background:var(--surface);border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:12px}
@@ -314,6 +315,14 @@ table.ptbl tr:hover td{background:#fafaf8}
 .mcont-mci{padding:8px 14px;border-bottom:1px solid #f0ede8;display:flex;flex-direction:column;gap:4px}
 .mcont-preds-hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 14px 4px;background:#fafafa}
 .mcont-preds{padding:4px 10px 10px}
+.ccontrib-blk{margin:8px 14px 12px;border:1px solid #eceae5;border-radius:6px;background:#fcfbf9}
+.ccontrib-hdr{position:relative;display:flex;align-items:center;padding:8px 10px 6px}
+.ccontrib-hdr .waeinp{flex:1;padding-right:26px;font-weight:600}
+.ccontrib-hdr .waedel{position:absolute;top:50%;right:8px;transform:translateY(-50%)}
+.ccontrib-hdr .waedel:active{transform:translateY(-50%) scale(0.9)}
+.ccontrib-mci{display:flex;flex-direction:column;gap:4px;padding:0 8px 6px}
+.ccontrib-blk .mcont-preds{padding:0 8px 8px}
+.ccontrib-blk .waeadd{margin:0 8px 8px}
 .predrow{display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:1px solid var(--surf3)}
 .predrow:last-child{border-bottom:none}
 .predrow-hdr{padding-bottom:2px;border-bottom:1px solid #e0ddd8!important}
@@ -386,8 +395,8 @@ table.ptbl tr:hover td{background:#fafaf8}
 .perf-back-btn:hover{border-color:var(--mid);color:var(--mid);background:#f0f4fa}
 .perf-sem-lbl{font-size:12px;color:var(--text-3)}
 
-.perf-hero{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:16px 20px;display:flex;align-items:center;gap:16px;margin-bottom:14px}
-.perf-hero-info{flex:1}
+.perf-hero{background:var(--surface);border:1px solid var(--border2);border-radius:10px;padding:16px 20px;display:flex;align-items:center;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.perf-hero-info{flex:1;min-width:0}
 .perf-hero-name{font-size:20px;font-weight:900;color:var(--navy);line-height:1.1}
 .perf-hero-cargo{font-size:13px;color:var(--text-3);margin-top:3px}
 .perf-hero-scores{display:flex;gap:10px;flex-shrink:0}
@@ -451,12 +460,20 @@ table.ptbl tr:hover td{background:#fafaf8}
 }
 
 @media (max-width: 768px) {
+  /* Evitar scroll horizontal de toda la página en pantallas chicas */
+  .topnav { overflow-x: auto }
+  .content { max-width: 100%; overflow-x: auto }
   .sidebar { width: 160px }
   .perf-wig-row { grid-template-columns: 1fr auto; gap: 6px }
   .perf-wig-bar, .perf-wig-pct { display: none }
   /* Tables scroll horizontally instead of breaking layout */
-  .ssec, .pblock, .perf-section { overflow-x: auto }
-  table.ptbl, .stbl { min-width: 520px }
+  .ssec, .pblock, .perf-section, .ptbl-wrap { overflow-x: auto }
+  .stbl { min-width: 520px }
+  /* En pantallas chicas ocultamos la columna "Avance" (barra) — el semáforo ya
+     muestra el %— para que la casilla de captura quepa sin scroll horizontal. */
+  table.ptbl { min-width: 0 }
+  table.ptbl th:nth-child(4), table.ptbl td:nth-child(4) { display: none }
+  table.ptbl th, table.ptbl td { padding-left: 8px; padding-right: 8px }
   /* Increase touch targets */
   .btn-nav { padding: 8px 12px }
   .btn-save { padding: 8px 14px }

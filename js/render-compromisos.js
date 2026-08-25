@@ -155,18 +155,21 @@ function qAddSelf(mci) {
 }
 
 // Devuelve los grupos MCI a los que puede comprometerse un integrante,
-// derivado de los valores únicos de preds[].mci de su miembro asociado.
+// derivado de los MCI generales a los que está alineado (m.mciAlineados).
 // Si no hay miembro asociado o es admin, devuelve todos los grupos.
 function mciParaIntegrante() {
   const ALL = _mciOpts().map(o => o.val);
   if (!su || su.rol !== 'integrante' || !su.mid) return ALL;
   const m = ST.miembros.find(x => x.id === su.mid);
   if (!m) return ALL;
-  const unicos = [...new Set((m.preds || []).map(p => p.mci))];
-  // Incluir 'Ambos MCIs' si el miembro tiene preds en más de un MCI numerado
-  const mciNumerados = unicos.filter(v => /^MCI \d/.test(v));
-  if (mciNumerados.length > 1 && !unicos.includes('Ambos MCIs')) unicos.push('Ambos MCIs');
-  return ALL.filter(g => unicos.includes(g));
+  const al = mcisDeIntegrante(m);
+  // Reconstruir el val estilo _mciOpts: `MCI n · <primera palabra del título>`
+  const permitidos = al.map(n => {
+    const corto = (ST.mciTitulos?.[n] || `MCI ${n}`).split(' ')[0];
+    return `MCI ${n} · ${corto}`;
+  });
+  if (al.length > 1) permitidos.push('Ambos MCIs');
+  return ALL.filter(g => permitidos.includes(g));
 }
 
 function openModalComp() {

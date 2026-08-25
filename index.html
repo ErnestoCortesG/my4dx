@@ -159,6 +159,20 @@
   </div>
 </div>
 
+<!-- MODAL: Nuevo integrante -->
+<div class="mov" id="m-miembro">
+  <div class="modal">
+    <h3>Nuevo integrante</h3>
+    <div class="frow"><label>Nombre completo</label><input id="mi-nom" type="text" autocomplete="off" placeholder="Nombre Apellido"></div>
+    <div class="frow"><label>Cargo / Área</label>    <input id="mi-cargo" type="text" autocomplete="off" placeholder="Ej. PMO · Ejecución 4DX"></div>
+    <div class="frow"><label>Color del avatar</label><input id="mi-color" type="color" value="#041224" style="width:60px;height:34px;padding:2px"></div>
+    <div class="mbtns">
+      <button type="button" class="bcancel"  onclick="closeModal('m-miembro')">Cancelar</button>
+      <button type="button" class="bconfirm" onclick="saveMiembro()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: Nuevo MCI contributivo -->
 <div class="mov" id="m-contrib">
   <div class="modal" style="width:560px">
@@ -172,8 +186,8 @@
       <input id="mc-nom" type="text" autocomplete="off" placeholder="Ej. De 61.55% a 70% conservación Promotorías">
     </div>
     <div class="frow">
-      <label>Alineado a MCI general</label>
-      <div id="mc-mci-checks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px"></div>
+      <label>Pertenece a MCI general</label>
+      <div id="mc-mci-checks" class="mci-checks-wrap"></div>
     </div>
     <div class="frow">
       <label>Medidas predictivas</label>
