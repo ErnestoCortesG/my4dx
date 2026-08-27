@@ -29,6 +29,7 @@ function selectM(id) {
     toast('Solo puedes ver tu propio perfil', 'warn'); return;
   }
   mActivo = id;
+  perfTab = 0; renovMes = 'todos';   // reset del tab/filtro al cambiar de integrante
   document.querySelectorAll('.mcard').forEach(x => x.classList.remove('active'));
   document.getElementById('card-' + id)?.classList.add('active');
   if (id !== 'todos') {
@@ -37,6 +38,13 @@ function selectM(id) {
     document.querySelectorAll('.nav-tab').forEach(x => x.classList.remove('active'));
     document.getElementById('page-perfil').classList.add('active');
     pagina = 'perfil';
+  } else if (pagina === 'perfil') {
+    // "Todos" desde un perfil → volver al Tablero general
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(x => x.classList.remove('active'));
+    document.getElementById('page-tablero').classList.add('active');
+    document.getElementById('tab-tablero')?.classList.add('active');
+    pagina = 'tablero';
   }
   renderAll();
 }

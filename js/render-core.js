@@ -61,14 +61,26 @@ function contribScoreAcum(c) {
   return pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
 }
 
-// ── Score acumulativo del INTEGRANTE ───────────────────────────────────────
-// Promedio de los scores de sus contributivos (cada contributivo pesa igual).
-// Ignora contributivos sin datos; null si ninguno tiene.
+// ── Score de un contributivo (normal o tipo dashboard) ─────────────────────
+// Renovación (tipo 'renovacion'): % 1er recibo global ponderado por base sobre
+// los meses maduros. Normal: promedio de sus medidas (contribScoreAcum).
+function contribScore(c) {
+  if (c && c.tipo === 'renovacion' && c.dash) {
+    const mad = (c.dash.meses || []).filter(x => x.maduro && x.base > 0);
+    const den = mad.reduce((a, x) => a + x.base, 0);
+    if (!den) return null;
+    return Math.round(mad.reduce((a, x) => a + x.pct1er * x.base, 0) / den * 10) / 10;
+  }
+  return contribScoreAcum(c);
+}
+
+// ── Score del INTEGRANTE ────────────────────────────────────────────────────
+// Promedio simple de los scores de sus contributivos con datos (ignora null).
 function predScoreAcum(m) {
   const scores = (m.contributivos || [])
-    .map(c => contribScoreAcum(c))
+    .map(c => contribScore(c))
     .filter(x => x !== null);
-  return scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+  return scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : null;
 }
 
 
