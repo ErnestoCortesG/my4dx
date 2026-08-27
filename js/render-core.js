@@ -71,6 +71,11 @@ function contribScore(c) {
     if (!den) return null;
     return Math.round(mad.reduce((a, x) => a + x.pct1er * x.base, 0) / den * 10) / 10;
   }
+  if (c && c.tipo === 'clavesagente' && c.claves) {
+    const acum = (c.claves.meses || []).reduce((a, m) => a + (m.total || 0), 0);
+    const tot = c.claves.metaTotal || 0;
+    return tot ? Math.round(acum / tot * 100 * 10) / 10 : null;   // % hacia la meta anual
+  }
   return contribScoreAcum(c);
 }
 

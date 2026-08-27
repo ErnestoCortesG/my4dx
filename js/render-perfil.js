@@ -55,7 +55,9 @@ function renderPerfil() {
     ? `<div class="perf-mci-contributivo"><div style="font-size:12px;color:var(--text-3);padding:6px 2px">Este integrante no tiene MCI contributivos. Agrégalos desde Administración.</div></div>`
     : (active.tipo === 'renovacion' && active.dash)
       ? renovDashHTML(active)
-      : contribMedidasHTML(active, ro);
+      : (active.tipo === 'clavesagente' && active.claves)
+        ? clavesDashHTML(active)
+        : contribMedidasHTML(active, ro);
 
   document.getElementById('perfil-content').innerHTML = `
     <div class="perf-back-bar">
@@ -238,6 +240,73 @@ function renovBarsSVG(gers, meta) {
     ? `width:100%;min-width:${W}px;height:auto;display:block`
     : `width:60%;min-width:260px;height:auto;display:block;margin:0 auto`;
   return `<svg viewBox="0 0 ${W} ${H}" style="${style}" role="img">${s}</svg>`;
+}
+
+// ── Contributivo tipo DASHBOARD de claves de agente (barras apiladas) ───────
+// Semáforo sobre el ACUMULADO de claves: ≤rojo → rojo, <verde → amarillo, ≥verde → verde.
+function clavesDashHTML(c) {
+  const K = c.claves, meses = K.meses || [], metaMes = K.metaMes || 50, metaTot = K.metaTotal || 250;
+  const rojo = K.semRojo || 100, verde = K.semVerde || 200;
+  const acum = meses.reduce((a, m) => a + (m.total || 0), 0);
+  const semC = acum <= rojo ? '#E02500' : acum >= verde ? '#4CAF50' : '#FFC107';
+  const semB = acum <= rojo ? 'br' : acum >= verde ? 'bg' : 'by';
+  const semT = acum <= rojo ? 'Rojo' : acum >= verde ? 'Verde' : 'Amarillo';
+  const cMcis = (c.mciAlineados || []).slice().sort((a,b)=>a-b);
+  const cBadges = cMcis.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${cMcis.map(n => `<span class="perf-mci-badge">MCI ${n} · ${esc(ST.mciTitulos?.[n] || 'General')}</span>`).join('')}</div>` : '';
+  return `<div class="claves-dash">
+    ${cBadges}
+    <div class="rkpis">
+      <div class="rkpi hl"><div class="rkv" style="color:${semC}">${acum}</div><div class="rkl">Claves acumuladas</div></div>
+      <div class="rkpi"><div class="rkv">${metaTot}</div><div class="rkl">Meta al año</div></div>
+      <div class="rkpi"><div class="rkv" style="color:#E02500">${metaMes}</div><div class="rkl">Meta mensual</div></div>
+    </div>
+    <div style="text-align:center;margin:2px 0 10px"><span class="badge ${semB}">Semáforo ${semT} · acumulado ${acum} / meta ${metaTot}</span></div>
+    <div class="renov-card"><div class="renov-ct">Claves de agente por mes · por Estado/Provincia (meta ${metaMes}/mes)</div><div class="ptbl-wrap">${clavesStackedSVG(K)}</div></div>
+  </div>`;
+}
+
+function _clavesColor(estado, idx) {
+  if (estado === 'Sin estado') return '#9fb3c0';
+  const PAL = ['#4e79a7','#f28e2b','#59a14f','#e15759','#76b7b2','#edc948','#b07aa1','#9c755f','#ff9da7','#8cd17d','#86bcb6','#d37295','#b6992d','#499894','#79706e','#d7b5a6','#1f77b4','#bab0ac'];
+  return PAL[idx % PAL.length];
+}
+
+function clavesStackedSVG(K) {
+  const meses = K.meses || [], metaMes = K.metaMes || 50;
+  // union de estados (orden estable; "Sin estado" al final → arriba del apilado)
+  const est = [];
+  meses.forEach(m => (m.segs || []).forEach(s => { if (!est.includes(s.estado)) est.push(s.estado); }));
+  est.sort((a, b) => a === 'Sin estado' ? 1 : b === 'Sin estado' ? -1 : a.localeCompare(b, 'es'));
+  const colOf = e => _clavesColor(e, est.indexOf(e));
+  const maxTot = Math.max(metaMes, ...meses.map(m => m.total || 0), 10);
+  const YMAX = Math.ceil(maxTot / 10) * 10, step = YMAX <= 40 ? 5 : 10;
+  const W = 620, H = 340, PL = 30, PR = 150, TOP = 20, BOT = 28, baseY = H - BOT, plotH = baseY - TOP;
+  const yOf = v => baseY - (v / YMAX) * plotH;
+  const slot = (W - PL - PR) / Math.max(meses.length, 1), bw = Math.min(84, slot * 0.5);
+  let s = '';
+  for (let g = 0; g <= YMAX; g += step) { const y = yOf(g); s += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="rgba(5,23,46,.09)"/><text x="${PL-6}" y="${(y+3).toFixed(1)}" font-size="9" fill="var(--text-3)" text-anchor="end">${g}</text>`; }
+  const my = yOf(metaMes);
+  s += `<line x1="${PL}" y1="${my.toFixed(1)}" x2="${W-PR}" y2="${my.toFixed(1)}" stroke="#dc2626" stroke-width="1.3" stroke-dasharray="6 3"/><text x="${W-PR}" y="${(my-3).toFixed(1)}" font-size="9" font-weight="800" fill="#dc2626" text-anchor="end">meta ${metaMes}/mes</text>`;
+  meses.forEach((m, mi) => {
+    const cx = PL + slot * mi + slot / 2, x = cx - bw / 2;
+    const byEst = {}; (m.segs || []).forEach(seg => { byEst[seg.estado] = seg.n; });
+    let acc = 0;
+    est.forEach(e => {
+      const n = byEst[e]; if (!n) return;
+      const y0 = yOf(acc), y1 = yOf(acc + n);
+      s += `<rect class="rbar" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${(y0 - y1).toFixed(1)}" fill="${colOf(e)}"><title>${esc(e)} · ${n} clave${n===1?'':'s'} (${m.nombre})</title></rect>`;
+      acc += n;
+    });
+    s += `<text x="${cx.toFixed(1)}" y="${(yOf(m.total)-6).toFixed(1)}" font-size="14" font-weight="900" fill="var(--ink)" text-anchor="middle">${m.total}</text>`;
+    s += `<text x="${cx.toFixed(1)}" y="${(baseY+15).toFixed(1)}" font-size="11" fill="var(--text-3)" text-anchor="middle">${m.nombre}</text>`;
+  });
+  s += `<line x1="${PL}" y1="${baseY}" x2="${W-PR}" y2="${baseY}" stroke="var(--text-3)" stroke-opacity=".4"/>`;
+  // leyenda (arriba del apilado primero)
+  const lx = W - PR + 8; let ly = TOP + 2;
+  s += `<text x="${lx}" y="${ly}" font-size="9" font-weight="700" fill="var(--ink)">Estado/Provincia</text>`;
+  est.slice().reverse().forEach((e, i) => { const yy = ly + 12 + i * 14; s += `<rect x="${lx}" y="${(yy-8).toFixed(1)}" width="10" height="10" rx="2" fill="${colOf(e)}"/><text x="${lx+14}" y="${yy.toFixed(1)}" font-size="8.5" fill="var(--ink)">${esc(e)}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img">${s}</svg>`;
 }
 
 // ── Handlers de UI ──────────────────────────────────────────────────────────
