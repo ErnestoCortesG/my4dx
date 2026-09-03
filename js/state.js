@@ -15,6 +15,7 @@ let ST = {
   miembros:    JSON.parse(JSON.stringify(MB)),
   wigs:        JSON.parse(JSON.stringify(WB)),
   mciTitulos:  { 1: 'Conservación de agentes', 2: 'Recluta de claves' },
+  mciCfg:      JSON.parse(JSON.stringify(MCICFG_DEF)),
   semanas:     {}
 };
 
@@ -105,7 +106,7 @@ function getWigVal(n, wigId) {
 let docVersions = {};   // key → versión conocida por el cliente
 
 function _configDoc() {
-  return { wigs: ST.wigs, miembros: ST.miembros, mciTitulos: ST.mciTitulos, _semCal: ST._semCal };
+  return { wigs: ST.wigs, miembros: ST.miembros, mciTitulos: ST.mciTitulos, mciCfg: ST.mciCfg, _semCal: ST._semCal };
 }
 
 /**
@@ -186,6 +187,25 @@ function _migrarST() {
   if (!ST.mciTitulos) {
     ST.mciTitulos = { 1: 'Conservación de agentes', 2: 'Recluta de claves' };
   }
+  // Config por MCI (tipo de gráfica + meta de línea). Default si falta.
+  if (!ST.mciCfg) {
+    ST.mciCfg = (typeof MCICFG_DEF !== 'undefined')
+      ? JSON.parse(JSON.stringify(MCICFG_DEF))
+      : { 1:{tipo:'agrupada', metaLinea:70}, 2:{tipo:'apilada', metaLinea:550} };
+  }
+  // Roles de WIG: 'banner' (alimenta el número grande) vs 'barra' (se dibuja).
+  // Idempotente: solo fija rol al que aún no lo tiene. Conserva ids intactos
+  // (los datos semanales viven en ST.semanas[N].wigs[id] y no se tocan).
+  (ST.wigs || []).forEach(w => {
+    if (!w.rol) w.rol = (w.id === 'cg') ? 'banner' : 'barra';
+    // Relabel MCI 2: cl → Agentes, cv → Vendedores (mantener ids).
+    if (w.id === 'cl' && /Claves nuevas/i.test(w.label || '')) {
+      w.label = 'Agentes'; w.uni = ' claves'; w.rol = 'barra';
+    }
+    if (w.id === 'cv' && /(con venta|venta 90)/i.test(w.label || '')) {
+      w.label = 'Vendedores'; w.uni = ' claves'; w.rol = 'barra';
+    }
+  });
   // Migrar al modelo de VARIOS MCI contributivos por integrante.
   // Antes: m.mci (nombre único) + m.preds (lista plana). Ahora:
   // m.contributivos = [{ id, nombre, preds:[{id,label,meta,uni}] }].
@@ -248,6 +268,18 @@ function _migrarST() {
       });
     });
   });
+  // Sandra Martínez: sus 3 medidas predictivas del MCI 1 Conservación pasan a
+  // captura semanal manual desde Admin (mismo espíritu que "MCI 1 Conservación").
+  // Idempotente: solo fija p.semanal en las medidas que aún no lo tienen (el
+  // 4dx.db ya existente tiene la config persistida sin este campo).
+  const _sandra = (ST.miembros || []).find(m => m.id === 'sandra');
+  if (_sandra) {
+    (_sandra.contributivos || []).forEach(c => {
+      (c.preds || []).forEach(p => {
+        if (p.semanal === undefined) p.semanal = true;
+      });
+    });
+  }
   // Migrar wigSem: garantizar que todas las semanas existentes tengan el campo
   Object.values(ST.semanas || {}).forEach(s => {
     if (!s.wigSem) s.wigSem = {};
@@ -263,4 +295,26 @@ function _migrarST() {
       });
     }
   });
+  // Dashboard "claves de vendedores" (tipo 'clavesvend') para Victoria.
+  // Conteo de claves nuevas por SEMANA (Sem N) segmentado por estado, alimentado
+  // manualmente desde Admin. Idempotente: convierte su contributivo destino y
+  // normaliza el payload sin borrar semanas ya capturadas.
+  const _vic = (ST.miembros || []).find(m => (m.nombre || '').toLowerCase().includes('ictoria'));
+  if (_vic) {
+    const c = (_vic.contributivos || []).find(x => x.tipo === 'clavesagente')
+      || (_vic.contributivos || [])[0];
+    if (c) {
+      const metaDef = (typeof CLAVESVEND_META_DEF !== 'undefined') ? CLAVESVEND_META_DEF : 250;
+      const prev = c.clavesvend || null;
+      c.tipo = 'clavesvend';
+      c.clavesvend = {
+        metaTotal: (prev && prev.metaTotal != null) ? prev.metaTotal : metaDef,
+        estados:   (prev && prev.estados)  ? prev.estados  : [],
+        semanas:   (prev && prev.semanas)  ? prev.semanas  : {},
+      };
+      // El modelo mensual-por-agente anterior no mapea al nuevo semanal-por-vendedor.
+      delete c.claves;
+      delete c.dash;
+    }
+  }
 }

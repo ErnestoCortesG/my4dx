@@ -23,9 +23,15 @@
     <div class="nav-tab"        id="tab-scores"      tabindex="0" role="tab" aria-selected="false" onclick="goPage('scores',this)"      onkeydown="if(event.key==='Enter'||event.key===' '){goPage('scores',this);event.preventDefault()}">Scores</div>
     <div class="nav-tab"        id="tab-admin"       tabindex="0" role="tab" aria-selected="false" onclick="goPage('admin',this)"       onkeydown="if(event.key==='Enter'||event.key===' '){goPage('admin',this);event.preventDefault()}"  style="display:none">Administración</div>
     <div class="nav-right">
-      <button class="btn-nav" onclick="semAnterior()">◀</button>
-      <span class="week-display" id="wlbl">Sem 1</span>
-      <button class="btn-nav" onclick="semSiguiente()">▶</button>
+      <div class="week-stepper" id="week-stepper" role="group" aria-label="Navegación de semana">
+        <button class="wk-arrow" id="wk-prev" onclick="semAnterior()" aria-label="Semana anterior" title="Semana anterior">&#8249;</button>
+        <div class="wk-center">
+          <span class="wk-live" id="wk-live" hidden title="Semana en curso"></span>
+          <div class="wk-num" id="wk-num">Sem 1</div>
+          <div class="wk-range" id="wk-range">—</div>
+        </div>
+        <button class="wk-arrow" id="wk-next" onclick="semSiguiente()" aria-label="Semana siguiente" title="Semana siguiente">&#8250;</button>
+      </div>
       <button class="btn-sem-hoy" id="btn-sem-hoy" onclick="semHoy()" title="Ir a la semana de calendario en curso">Semana actual</button>
       <button class="btn-save" id="bsave" onclick="guardar()" style="display:none">Guardar</button>
       <button class="btn-login-nav" id="btn-login-nav" onclick="openLoginModal()">Iniciar sesión</button>

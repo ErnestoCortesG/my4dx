@@ -5,8 +5,16 @@
 
 let perfTab   = 0;        // índice del contributivo activo
 let renovMes  = 'todos';  // filtro de mes del dashboard de renovación
+let predMes   = null;     // filtro de mes de medidas predictivas semanales (null = vigente)
+
+// Charts de "claves de vendedores" que se rellenan tras insertar el HTML (flujo
+// medir-luego-render para responsividad 1:1 sin estirar el SVG).
+let _cvPending    = [];   // ids de contributivos por rellenar
+let _cvResizeObs  = null; // ResizeObserver único (se evita apilar observers)
+let _cvResizeRaf  = 0;    // rAF de throttle del resize
 
 const _MES_AB = { 1:'ene',2:'feb',3:'mar',4:'abr',5:'may',6:'jun',7:'jul',8:'ago',9:'sep',10:'oct',11:'nov',12:'dic' };
+const MESES_LARGO = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 function _semColor(p) { return p >= 75 ? '#4CAF50' : p >= 60 ? '#FFC107' : '#E02500'; }
 function _gerShort(g) {
   return String(g)
@@ -57,7 +65,9 @@ function renderPerfil() {
       ? renovDashHTML(active)
       : (active.tipo === 'clavesagente' && active.claves)
         ? clavesDashHTML(active)
-        : contribMedidasHTML(active, ro);
+        : (active.tipo === 'clavesvend' && active.clavesvend)
+          ? clavesVendDashHTML(active)
+          : contribMedidasHTML(active, ro);
 
   document.getElementById('perfil-content').innerHTML = `
     <div class="perf-back-bar">
@@ -88,19 +98,30 @@ function renderPerfil() {
     ${tabbar}
     <div class="ctab-pane">${content}</div>
   `;
+
+  // Rellena las gráficas de claves de vendedores midiendo su contenedor ya insertado.
+  _flushClavesVendCharts();
+}
+
+// Dispara el render medido de cada chart de claves-vendedores pendiente (tras
+// insertar el HTML, para que el host ya tenga ancho real).
+function _flushClavesVendCharts() {
+  const ids = _cvPending; _cvPending = [];
+  ids.forEach(cid => requestAnimationFrame(() => renderClavesVendChart(cid)));
 }
 
 // ── Contributivo NORMAL (medidas predictivas) ──────────────────────────────
 function contribMedidasHTML(c, ro) {
   const predRowHTML = p => {
-    const a   = parseFloat(p.actual);
+    const mesEff = (predMes === null) ? MES_DE_SEM[sem] : predMes;
+    const a   = p.semanal ? predMesVal(p.id, mesEff) : parseFloat(p.actual);
     const has = !isNaN(a) && a > 0;
     const pc  = has ? Math.min(100, Math.round(a / p.meta * 100)) : 0;
     const fc  = pc >= 100 ? '#4CAF50' : pc >= 50 ? '#FFC107' : '#E02500';
     const bc  = pc >= 100 ? 'bg' : pc >= 50 ? 'by' : 'br';
     const valFmt = has ? a + esc(p.uni) : '—';
     const valInp = (p.actual !== undefined && p.actual !== null && p.actual !== '') ? p.actual : '';
-    const inp = ro
+    const inp = (ro || p.semanal)
       ? `<span style="font-size:13px;font-weight:700;color:${has ? fc : 'var(--text-4)'}"><strong>${valFmt}</strong></span>`
       : `<div style="display:flex;align-items:center;gap:6px">
            <input class="pinp" type="number" value="${valInp}" placeholder="—" style="width:80px;font-size:13px"
@@ -122,12 +143,22 @@ function contribMedidasHTML(c, ro) {
   const cBadges = cMcis.length
     ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${cMcis.map(n => `<span class="perf-mci-badge">MCI ${n} · ${esc(ST.mciTitulos?.[n] || 'General')}</span>`).join('')}</div>` : '';
   const rows = (c.preds || []).map(predRowHTML).join('');
+  // Chips de mes: solo si al menos una medida es de captura semanal (ej. Sandra).
+  const tieneSemanal = (c.preds || []).some(p => p.semanal);
+  const mesActualIdx = MES_DE_SEM[sem];
+  const chipsMes = tieneSemanal
+    ? `<div class="mchips" style="margin-bottom:8px">
+        <button class="mchip ${predMes === null ? 'on' : ''}" onclick="selPredMes(null)">Vigente</button>
+        ${MESES_LARGO.map((nm, i) => `<button class="mchip ${predMes === i ? 'on' : ''} ${i > mesActualIdx ? 'dim' : ''}" onclick="selPredMes(${i})">${nm}</button>`).join('')}
+      </div>`
+    : '';
   return `<div class="perf-mci-contributivo">
     ${cBadges}
     <div class="perf-mci-avance" style="background:${cSc}20;border:1px solid ${cSc}40">
       <span style="font-size:20px;font-weight:900;color:${cSc};font-family:'Lato',sans-serif">${cScore !== null ? cScore + '%' : '—'}</span>
       <span style="font-size:11px;color:var(--text-3);margin-left:8px">Cumplimiento del MCI contributivo</span>
     </div>
+    ${chipsMes}
     <div class="ptbl-wrap" style="margin-top:10px">
       <table class="ptbl">
         <thead><tr><th>Medida predictiva</th><th>Meta anual</th><th>Actual</th><th>Avance</th><th>Semáforo</th></tr></thead>
@@ -309,8 +340,176 @@ function clavesStackedSVG(K) {
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img">${s}</svg>`;
 }
 
+// ── Contributivo tipo DASHBOARD de claves de vendedores (barras apiladas) ────
+// Datos alimentados manualmente por semana desde Administración. El modelo lo
+// provee BACK: c.clavesvend = { metaTotal, estados:[], semanas:{ [semN]:{ [estado]:n } } }.
+// Usa los helpers globales clavesVendAcum(c, sem) y clavesVendSemana(c, n).
+function clavesVendDashHTML(c) {
+  const K = c.clavesvend || {};
+  const acum   = clavesVendAcum(c, sem);
+  const actual = clavesVendSemana(c, sem);
+  const metaTot = K.metaTotal || 0;
+  const acol = metaTot > 0 ? (acum >= metaTot ? '#4CAF50' : acum >= metaTot * 0.5 ? '#FFC107' : '#E02500') : 'var(--navy)';
+  const rango = SEMANAS[sem] || '';
+  const cMcis = (c.mciAlineados || []).slice().sort((a,b)=>a-b);
+  const cBadges = cMcis.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${cMcis.map(n => `<span class="perf-mci-badge">MCI ${n} · ${esc(ST.mciTitulos?.[n] || 'General')}</span>`).join('')}</div>` : '';
+  _cvPending.push(c.id);  // se rellena tras insertar (medir-luego-render responsivo)
+  // Suma de claves del MES en curso (mes de la semana actual `sem`): recorre las
+  // semanas del payload cuyo mes (MES_DE_SEM) coincide con el mes de `sem`.
+  const mesIdx = (typeof MES_DE_SEM !== 'undefined' && MES_DE_SEM) ? MES_DE_SEM[sem] : undefined;
+  const semanasK = (c.clavesvend && c.clavesvend.semanas) || {};
+  let monthSum = 0, monthWeeks = 0;
+  if (mesIdx !== undefined) {
+    Object.keys(semanasK).forEach(k => {
+      const n = Number(k);
+      if (MES_DE_SEM && MES_DE_SEM[n] === mesIdx) {
+        const v = clavesVendSemana(c, n);
+        monthSum += v;
+        if (v > 0) monthWeeks++;
+      }
+    });
+  }
+  const mesNom = (mesIdx !== undefined && MESES_LARGO[mesIdx]) ? MESES_LARGO[mesIdx] : 'Mes en curso';
+  const monthCard = `<div class="cv-month-card">
+      <div class="cv-mc-title">${esc(mesNom)}</div>
+      <div class="cv-mc-num">${monthSum}</div>
+      <div class="cv-mc-unit">claves</div>
+      <div class="cv-mc-sub">${monthWeeks} ${monthWeeks === 1 ? 'semana' : 'semanas'} con datos</div>
+    </div>`;
+  return `<div class="clavesvend-dash">
+    ${cBadges}
+    <div class="cv-kpis">
+      <div class="cv-kpi hl"><div class="cv-kv" style="color:${acol}">${acum}</div><div class="cv-kl">Total acumulado${metaTot ? ` · meta ${metaTot}` : ''}</div></div>
+      <div class="cv-kpi"><div class="cv-kv">${actual}</div><div class="cv-kl">Claves de la semana actual · Sem ${sem}${rango ? ` (${esc(rango)})` : ''}</div></div>
+    </div>
+    <div class="cv-chart-row">
+      <div class="renov-card cv-chart-col"><div class="renov-ct">Claves de vendedores por semana · por Estado/Provincia</div><div class="ptbl-wrap" id="cv-chart-host-${c.id}"></div></div>
+      ${monthCard}
+    </div>
+  </div>`;
+}
+
+// Mide el host ya insertado y pinta el SVG a su ancho real (1:1). Instala un
+// único ResizeObserver que re-pinta al cambiar el ancho (throttle con rAF).
+function renderClavesVendChart(cid) {
+  const host = document.getElementById('cv-chart-host-' + cid);
+  if (!host) return;
+  const m = ST.miembros.find(x => x.id === mActivo);
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  if (!c) return;
+  const availW = host.clientWidth || 360;
+  host.innerHTML = clavesVendStackedSVG(c, availW);
+  // Un solo observer: desconecta el anterior antes de observar el host actual.
+  if (_cvResizeObs) _cvResizeObs.disconnect();
+  let lastW = availW;
+  _cvResizeObs = new ResizeObserver(entries => {
+    const w = Math.round(entries[0].contentRect.width);
+    if (w === lastW) return;
+    lastW = w;
+    if (_cvResizeRaf) cancelAnimationFrame(_cvResizeRaf);
+    _cvResizeRaf = requestAnimationFrame(() => renderClavesVendChart(cid));
+  });
+  _cvResizeObs.observe(host);
+}
+
+function clavesVendStackedSVG(c, availW) {
+  const K = c.clavesvend || {};
+  const semanas = K.semanas || {}, estados = K.estados || [], metaTot = K.metaTotal || 0;
+  const colOf = e => _clavesColor(e, estados.indexOf(e));
+  // Solo las semanas del MES EN CURSO (el mes de la semana seleccionada) que
+  // tengan datos, en orden ascendente. Así la gráfica queda alineada con la card
+  // del mes y con el navegador de semanas.
+  const totOf = n => estados.reduce((a, e) => a + (Number((semanas[n] || {})[e]) || 0), 0);
+  const _mesIdx = (typeof MES_DE_SEM !== 'undefined') ? MES_DE_SEM[sem] : null;
+  const weeks = Object.keys(semanas)
+    .map(Number)
+    .filter(n => totOf(n) > 0 && (_mesIdx == null || MES_DE_SEM[n] === _mesIdx))
+    .sort((a, b) => a - b);
+  if (!weeks.length) {
+    const _mesNom = (_mesIdx != null && MESES_LARGO[_mesIdx]) ? MESES_LARGO[_mesIdx] : 'este mes';
+    return `<div style="font-size:12px;color:var(--text-3);padding:18px 6px;text-align:center">Sin claves capturadas en ${esc(_mesNom)}. Alimenta los datos desde Administración por semana.</div>`;
+  }
+  const maxWeek = Math.max(...weeks.map(totOf), 1);
+  // La escala se ajusta a los conteos SEMANALES (no a metaTot, que es un objetivo
+  // ACUMULADO anual: iría al tope y aplastaría las barras). El semáforo de la meta
+  // vive en el acumulado (tarjeta KPI + banner del perfil), no en las barras.
+  const vmax = Math.max(maxWeek, 1);
+  const YMAX = Math.ceil(vmax / (vmax <= 20 ? 2 : 10)) * (vmax <= 20 ? 2 : 10) || 10, step = YMAX <= 20 ? 2 : YMAX <= 40 ? 5 : 10;
+
+  // ── Layout responsivo (render 1:1: el SVG NO se estira, así que tipografías y
+  // trazos conservan su tamaño en px a cualquier ancho). Medimos contra availW. ──
+  const AW = Math.max(availW || 360, 200);
+  const mobile = AW < 430;                    // en móvil quitamos la columna de leyenda
+  const PL = 28, LEG = mobile ? 0 : 122, TOP = 16, BOT = 24;
+  const plotW = Math.max(AW - PL - LEG, 120);
+  const nW = Math.max(weeks.length, 1);
+  // El slot llena el ancho disponible, acotado para que las barras no queden ni
+  // amontonadas (mín) ni exageradamente separadas (máx): con muchas semanas cae al
+  // mínimo y el contenedor hace scroll; con pocas, ensancha y llena la columna.
+  const slot = Math.max(44, Math.min(120, plotW / nW));
+  const bw = Math.max(16, Math.min(46, slot * 0.52));
+  const plotRight = PL + nW * slot;             // borde derecho del área de barras
+  const W = plotRight + LEG;                    // ancho total del contenido
+  // Alto proporcional a los datos, acotado; se extiende si la leyenda (una fila
+  // por estado) necesita más espacio, para no recortarla.
+  const plotH = Math.max(150, Math.min(240, 150 + YMAX * 4));
+  const baseY = TOP + plotH;
+  const legHeight = LEG ? (40 + estados.length * 12) : 0;
+  const H = Math.max(TOP + plotH + BOT, legHeight);
+  const yOf = v => baseY - (v / YMAX) * plotH;
+  let s = '';
+  for (let g = 0; g <= YMAX; g += step) { const y = yOf(g); s += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${plotRight}" y2="${y.toFixed(1)}" stroke="rgba(5,23,46,.08)"/><text x="${PL-5}" y="${(y+3).toFixed(1)}" font-size="8" fill="var(--text-3)" text-anchor="end">${g}</text>`; }
+  const cxOf = i => PL + slot * i + slot / 2;
+  // Barras apiladas (reveal escalonado por semana)
+  weeks.forEach((n, wi) => {
+    const cx = cxOf(wi), x = cx - bw / 2, wk = semanas[n] || {};
+    if (n === sem) s += `<rect x="${(cx - slot/2 + 2).toFixed(1)}" y="${TOP.toFixed(1)}" width="${(slot-4).toFixed(1)}" height="${(baseY-TOP).toFixed(1)}" fill="#E0A80014" rx="4"/>`;
+    let acc = 0;
+    estados.forEach(e => {
+      const nn = Number(wk[e]) || 0; if (!nn) return;
+      const y0 = yOf(acc), y1 = yOf(acc + nn);
+      s += `<rect class="rbar" style="animation-delay:${(wi*0.05).toFixed(2)}s" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${(y0 - y1).toFixed(1)}" fill="${colOf(e)}"><title>Sem ${n} · ${esc(e)}: ${nn} clave${nn===1?'':'s'}</title></rect>`;
+      acc += nn;
+    });
+  });
+  // Línea total general + etiquetas numéricas encima de cada barra
+  const poly = weeks.map((n, i) => `${cxOf(i).toFixed(1)},${yOf(totOf(n)).toFixed(1)}`).join(' ');
+  s += `<polyline class="rline" points="${poly}" fill="none" stroke="#f28e2b" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  weeks.forEach((n, i) => {
+    const t = totOf(n), cx = cxOf(i), yy = yOf(t);
+    s += `<circle cx="${cx.toFixed(1)}" cy="${yy.toFixed(1)}" r="2.6" fill="#f28e2b"><title>Sem ${n} · Total general: ${t}</title></circle>`;
+    s += `<text x="${cx.toFixed(1)}" y="${(yy-7).toFixed(1)}" font-size="11" font-weight="800" fill="var(--ink)" text-anchor="middle">${t}</text>`;
+    const cur = n === sem;
+    s += `<text x="${cx.toFixed(1)}" y="${(baseY+14).toFixed(1)}" font-size="9.5" font-weight="${cur?'800':'400'}" fill="${cur?'#a76a00':'var(--text-3)'}" text-anchor="middle">Sem ${n}</text>`;
+  });
+  s += `<line x1="${PL}" y1="${baseY}" x2="${plotRight}" y2="${baseY}" stroke="var(--text-3)" stroke-opacity=".4"/>`;
+  // Leyenda "Total general" + estados (columna derecha; en móvil va como chips HTML)
+  if (LEG) {
+    const lx = plotRight + 8; let ly = TOP + 2;
+    s += `<line x1="${lx}" y1="${(ly-3).toFixed(1)}" x2="${lx+11}" y2="${(ly-3).toFixed(1)}" stroke="#f28e2b" stroke-width="2"/><circle cx="${lx+5.5}" cy="${(ly-3).toFixed(1)}" r="2.4" fill="#f28e2b"/><text x="${lx+15}" y="${ly.toFixed(1)}" font-size="8" font-weight="700" fill="var(--ink)">Total general</text>`;
+    ly += 13;
+    s += `<text x="${lx}" y="${ly.toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--ink)">Estado/Provincia</text>`;
+    estados.slice().reverse().forEach((e, i) => { const yy = ly + 11 + i * 12; s += `<rect x="${lx}" y="${(yy-8).toFixed(1)}" width="9" height="9" rx="2" fill="${colOf(e)}"/><text x="${lx+13}" y="${yy.toFixed(1)}" font-size="8" fill="var(--ink)">${esc(e)}</text>`; });
+  }
+  // Render 1:1 (viewBox = W×H reales): sin estirar, la tipografía y los trazos
+  // conservan sus px. Si W ≤ availW se centra; si W > availW, .ptbl-wrap desplaza.
+  const svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;margin:0 auto" role="img">${s}</svg>`;
+  // En móvil la leyenda se muestra como chips HTML bajo el SVG (no comprime el plot).
+  if (mobile) {
+    const chips = `<span class="cv-leg-chip"><i class="cv-leg-line"></i>Total general</span>` +
+      estados.map(e => `<span class="cv-leg-chip"><i style="background:${colOf(e)}"></i>${esc(e)}</span>`).join('');
+    return svg + `<div class="cv-leg-chips">${chips}</div>`;
+  }
+  return svg;
+}
+
 // ── Handlers de UI ──────────────────────────────────────────────────────────
-function selPerfTab(i)  { perfTab = i; renovMes = 'todos'; renderPerfil(); }
+function selPerfTab(i)  { perfTab = i; renovMes = 'todos'; predMes = null; renderPerfil(); }
+
+// Cambio de mes en medidas predictivas semanales (ej. Sandra): re-render completo,
+// la tabla es pequeña y no requiere la animación parcial de renovDynHTML.
+function selPredMes(v) { predMes = v; renderPerfil(); }
 
 // Cambio de mes: actualiza SOLO la parte dinámica (KPIs + barras) para animar la
 // transición sin re-renderizar toda la vista. Si no encuentra los nodos, recae en render completo.

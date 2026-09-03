@@ -94,9 +94,9 @@ const MB = [
   { id:'sandra',   nombre:'Sandra Martínez', cargo:'Promotorías',             ini:'SM', color:'#e65100', tag:'Conservación',  tc:'tc',
     mci:'De 61.55% a 70% conservación Promotorías. Base: 627 · Meta: 439.', mciAlineados:[1],
     preds:[
-      {id:'sn1', label:'Renovaciones a vencer 45d identificadas', meta:100, uni:'%',       mci:'MCI 1 · Conservación'},
-      {id:'sn2', label:'Agentes baja producción contactados',      meta:20,  uni:' agentes',mci:'MCI 1 · Conservación'},
-      {id:'sn3', label:'Tiempo resp. solicitudes críticas (hrs)',  meta:24,  uni:'h',       mci:'MCI 1 · Conservación'}
+      {id:'sn1', label:'Renovaciones a vencer 45d identificadas', meta:100, uni:'%',       mci:'MCI 1 · Conservación', semanal:true},
+      {id:'sn2', label:'Agentes baja producción contactados',      meta:20,  uni:' agentes',mci:'MCI 1 · Conservación', semanal:true},
+      {id:'sn3', label:'Tiempo resp. solicitudes críticas (hrs)',  meta:24,  uni:'h',       mci:'MCI 1 · Conservación', semanal:true}
     ]
   },
   { id:'maricruz', nombre:'Maricruz García', cargo:'Franquicias',             ini:'MG', color:'#37474f', tag:'Cons.+Recluta', tc:'ta',
@@ -119,12 +119,20 @@ const MB = [
 
 // ── WIGs / MCIs generales ─────────────────────────────────────────────────
 const WB = [
-  {id:'cg', label:'Conservación global', inicio:55.36, meta:70,   uni:'%',       mci:1, sub:'2,804 agentes · Meta: 1,963'},
-  {id:'fr', label:'Franquicias',         inicio:53.57, meta:70,   uni:'%',       mci:1, sub:'Base: 2,177 · Meta: 1,524'},
-  {id:'pr', label:'Promotorías',         inicio:61.55, meta:70,   uni:'%',       mci:1, sub:'Base: 627 · Meta: 439'},
-  {id:'cl', label:'Claves nuevas acum.', inicio:591,   meta:1000, uni:' claves', mci:2, sub:'Click: 486 · Aseg.: 105/135'},
-  {id:'cv', label:'Claves con venta 90d',inicio:28,    meta:350,  uni:' claves', mci:2, sub:'Meta: 35% del total'}
+  {id:'cg', label:'Conservación global', inicio:55.36, meta:70,   uni:'%',       mci:1, rol:'banner', sub:'2,804 agentes · Meta: 1,963'},
+  {id:'fr', label:'Franquicias',         inicio:53.57, meta:70,   uni:'%',       mci:1, rol:'barra',  sub:'Base: 2,177 · Meta: 1,524'},
+  {id:'pr', label:'Promotorías',         inicio:61.55, meta:70,   uni:'%',       mci:1, rol:'barra',  sub:'Base: 627 · Meta: 439'},
+  {id:'cl', label:'Agentes',             inicio:591,   meta:1000, uni:' claves', mci:2, rol:'barra',  sub:'Click: 486 · Aseg.: 105/135'},
+  {id:'cv', label:'Vendedores',          inicio:28,    meta:350,  uni:' claves', mci:2, rol:'barra',  sub:'Meta: 35% del total'}
 ];
+
+// ── Config por MCI general: tipo de gráfica y meta de la línea del MCI ──────
+// tipo: 'agrupada' | 'apilada'; metaLinea es la meta a nivel MCI (no por elemento).
+const MCICFG_DEF = { 1:{tipo:'agrupada', metaLinea:70}, 2:{tipo:'apilada', metaLinea:550} };
+
+// Meta total por defecto para el dashboard de "claves de vendedores" (tipo
+// 'clavesvend'): conteo de claves nuevas por semana, alimentado manualmente.
+const CLAVESVEND_META_DEF = 250;
 
 // ── MCI generales de un integrante ────────────────────────────────────────
 // Unión de los MCI generales de todos sus MCI contributivos (fuente de verdad

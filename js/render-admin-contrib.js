@@ -22,6 +22,12 @@ function adminContribHTML() {
       }).join('');
       const predRows = (c.preds || []).map(p => {
         return `<div class="predrow" data-pid="${p.id}">
+          ${p.semanal ? `<div class="waefield waefield-actual" style="margin-right:6px">
+            <label class="waelbl">Actual (Sem ${sem})</label>
+            <input type="number" class="waeinp" value="${getPredVal(sem, p.id) ?? ''}"
+              title="Valor acumulado a esta semana."
+              onchange="savePredWeekly('${p.id}',parseFloat(this.value)||0)">
+          </div>` : ''}
           <input type="text" class="predinp predinp-lbl" autocomplete="off"
             value="${esc(p.label||'')}" placeholder="Nombre de la medida"
             onchange="savePredField('${m.id}','${c.id}','${p.id}','label',this.value)">
@@ -35,6 +41,20 @@ function adminContribHTML() {
         </div>`;
       }).join('');
 
+      const body = (c.tipo === 'clavesvend')
+        ? clavesVendAdminHTML(c)
+        : `<div class="mcont-preds">
+          <div class="predrow predrow-hdr">
+            <span class="waelbl" style="flex:1">Medida</span>
+            <span class="waelbl" style="width:60px">Meta</span>
+            <span class="waelbl" style="width:52px">Unidad</span>
+            <span style="width:22px"></span>
+          </div>
+          ${predRows || '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin medidas — usa "+ Agregar medida"</div>'}
+        </div>
+        <button type="button" class="waeadd" style="font-size:10px;padding:3px 8px;margin-top:6px"
+          onclick="addPredToContrib('${m.id}','${c.id}')">+ Agregar medida</button>`;
+
       return `<div class="ccontrib-blk">
         <div class="ccontrib-hdr">
           <input type="text" class="waeinp" autocomplete="off"
@@ -46,17 +66,7 @@ function adminContribHTML() {
           <label class="waelbl">Pertenece a MCI general</label>
           <div class="mci-checks-wrap">${mciChecks}</div>
         </div>
-        <div class="mcont-preds">
-          <div class="predrow predrow-hdr">
-            <span class="waelbl" style="flex:1">Medida</span>
-            <span class="waelbl" style="width:60px">Meta</span>
-            <span class="waelbl" style="width:52px">Unidad</span>
-            <span style="width:22px"></span>
-          </div>
-          ${predRows || '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin medidas — usa "+ Agregar medida"</div>'}
-        </div>
-        <button type="button" class="waeadd" style="font-size:10px;padding:3px 8px;margin-top:6px"
-          onclick="addPredToContrib('${m.id}','${c.id}')">+ Agregar medida</button>
+        ${body}
       </div>`;
     }).join('');
 
@@ -235,6 +245,18 @@ function savePredField(mid, cid, pid, field, val) {
   guardarConfig();
 }
 
+// Captura semanal manual de una medida predictiva marcada `p.semanal === true`
+// (ej. las de Sandra Martínez). El valor se guarda en la semana activa `sem`,
+// igual que saveWigActual para los WIGs.
+function savePredWeekly(predId, val) {
+  const s = getSem(sem);
+  if (!s.preds) s.preds = {};
+  s.preds[predId] = val;
+  renderTablero();
+  if (pagina === 'perfil') renderPerfil();
+  guardarSemana(sem);
+}
+
 async function delPred(mid, cid, pid) {
   const m = ST.miembros.find(x => x.id === mid);
   const c = m && (m.contributivos || []).find(x => x.id === cid);
@@ -261,6 +283,122 @@ function addPredToContrib(mid, cid) {
   c.preds.push({ id: uid(), label: 'Nueva medida', meta: 100, uni: '%' });
   renderAdmin();
   renderTablero();
+  guardarConfig();
+}
+
+// ── Captura semanal · Claves de vendedores (tipo 'clavesvend') ──────────────
+// Formulario compacto que se edita semana a semana. La semana activa la marca
+// el navegador global (`sem`): la captura aplica a esa semana.
+function clavesVendAdminHTML(c) {
+  const K = c.clavesvend || (c.clavesvend = { metaTotal: 0, estados: [], semanas: {} });
+  const estados = K.estados || [], wk = K.semanas?.[sem] || {};
+  const rango = SEMANAS[sem] || '';
+  const rows = estados.length
+    ? estados.map(e => `<div class="cv-row">
+        <input type="text" class="predinp cv-est" autocomplete="off" value="${esc(e)}"
+          title="Renombrar estado/provincia"
+          onchange="renameClavesVendEstado('${c.id}',${esc(JSON.stringify(e))},this.value)">
+        <input type="number" class="predinp cv-num" min="0" value="${Number(wk[e]) || 0}"
+          title="Claves de la semana" onchange="setClavesVendCount('${c.id}',${sem},${esc(JSON.stringify(e))},this.value)">
+        <button type="button" class="preddel" title="Quitar estado"
+          onclick="delClavesVendEstado('${c.id}',${esc(JSON.stringify(e))})">×</button>
+      </div>`).join('')
+    : '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin estados — agrega uno abajo.</div>';
+  return `<div class="cv-admin">
+    <div class="cv-meta-row">
+      <label class="waelbl">Meta total (año)</label>
+      <input type="number" class="predinp cv-num" min="0" value="${Number(K.metaTotal) || 0}"
+        onchange="saveClavesVendMeta('${c.id}',this.value)">
+    </div>
+    <div class="cv-wk-hdr">Captura de <b>Sem ${sem}</b>${rango ? ` · ${esc(rango)}` : ''} <span>(usa el navegador de semanas)</span></div>
+    <div class="cv-rows">
+      <div class="cv-row cv-row-hdr">
+        <span class="waelbl" style="flex:1">Estado/Provincia</span>
+        <span class="waelbl" style="width:60px">Claves</span>
+        <span style="width:22px"></span>
+      </div>
+      ${rows}
+    </div>
+    <div class="cv-add">
+      <input type="text" class="predinp cv-add-inp" id="cv-add-${c.id}" autocomplete="off"
+        placeholder="Nuevo estado/provincia"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();addClavesVendEstado('${c.id}',this.value);this.value='';}">
+      <button type="button" class="waeadd" style="font-size:10px;padding:3px 8px"
+        onclick="var i=document.getElementById('cv-add-${c.id}');addClavesVendEstado('${c.id}',i.value);i.value='';">+ Agregar estado</button>
+    </div>
+  </div>`;
+}
+
+// Localiza un contributivo por id en cualquier integrante.
+function _findClavesVend(cid) {
+  for (const m of ST.miembros) {
+    const c = (m.contributivos || []).find(x => x.id === cid);
+    if (c) { if (!c.clavesvend) c.clavesvend = { metaTotal: 0, estados: [], semanas: {} }; return c; }
+  }
+  return null;
+}
+
+function saveClavesVendMeta(cid, val) {
+  const c = _findClavesVend(cid); if (!c) return;
+  c.clavesvend.metaTotal = Math.max(0, parseFloat(val) || 0);
+  renderPerfil();
+  guardarConfig();
+}
+
+function setClavesVendCount(cid, semN, estado, val) {
+  const c = _findClavesVend(cid); if (!c) return;
+  const K = c.clavesvend;
+  if (!K.semanas[semN]) K.semanas[semN] = {};
+  const n = Math.max(0, parseFloat(val) || 0);
+  if (n > 0) K.semanas[semN][estado] = n;
+  else delete K.semanas[semN][estado];
+  renderPerfil();
+  guardarConfig();
+}
+
+function addClavesVendEstado(cid, estado) {
+  const c = _findClavesVend(cid); if (!c) return;
+  const nombre = (estado || '').trim();
+  if (!nombre) { toast('Escribe un estado', 'warn'); return; }
+  const K = c.clavesvend;
+  if (!K.estados.includes(nombre)) K.estados.push(nombre);
+  renderAdmin();
+  renderPerfil();
+  guardarConfig();
+}
+
+async function delClavesVendEstado(cid, estado) {
+  const c = _findClavesVend(cid); if (!c) return;
+  const ok = await confirmar({
+    titulo: 'Quitar estado',
+    mensaje: `¿Quitar "${estado}" y sus claves capturadas en todas las semanas?`,
+    ok: 'Quitar', peligro: true,
+  });
+  if (!ok) return;
+  const K = c.clavesvend;
+  K.estados = K.estados.filter(x => x !== estado);
+  Object.values(K.semanas).forEach(wk => { delete wk[estado]; });
+  renderAdmin();
+  renderPerfil();
+  guardarConfig();
+  toast('Estado quitado', 'ok');
+}
+
+function renameClavesVendEstado(cid, oldName, newName) {
+  const c = _findClavesVend(cid); if (!c) return;
+  const nuevo = (newName || '').trim();
+  const K = c.clavesvend;
+  if (!nuevo) { toast('El nombre no puede quedar vacío', 'warn'); renderAdmin(); return; }
+  if (nuevo === oldName) return;
+  if (K.estados.includes(nuevo)) { toast('Ya existe ese estado', 'warn'); renderAdmin(); return; }
+  const i = K.estados.indexOf(oldName);
+  if (i < 0) return;
+  K.estados[i] = nuevo;
+  Object.values(K.semanas).forEach(wk => {
+    if (wk[oldName] !== undefined) { wk[nuevo] = wk[oldName]; delete wk[oldName]; }
+  });
+  renderAdmin();
+  renderPerfil();
   guardarConfig();
 }
 

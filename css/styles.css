@@ -80,6 +80,20 @@ body{font-size:13px;color:#1a1a18;min-height:100vh;background:var(--bg)}
 .nav-tab.active{color:#fff;border-bottom-color:var(--cta)}
 .nav-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 .week-display{color:rgba(255,255,255,.8);font-size:11px}
+/* Stepper de semana: flechas + indicador unificados en una píldora */
+.week-stepper{display:flex;align-items:center;gap:2px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:24px;padding:3px 4px;transition:border-color .15s ease-out,box-shadow .15s ease-out}
+.week-stepper.is-actual{border-color:rgba(46,156,70,.7);box-shadow:0 0 0 1px rgba(46,156,70,.35)}
+.wk-arrow{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#fff;font-size:22px;font-weight:700;line-height:1;border-radius:50%;cursor:pointer;transition:background .15s ease-out,transform .1s ease-out}
+.wk-arrow:hover{background:rgba(255,255,255,.22)}
+.wk-arrow:active{transform:scale(.88)}
+.wk-arrow:disabled{opacity:.28;cursor:default}
+.wk-arrow:disabled:hover{background:transparent}
+.wk-center{position:relative;min-width:104px;text-align:center;padding:0 4px;line-height:1.02;user-select:none}
+.wk-num{font-size:16px;font-weight:800;color:#fff;letter-spacing:.01em}
+.wk-range{font-size:9.5px;font-weight:600;color:rgba(255,255,255,.62);white-space:nowrap;margin-top:1px}
+.wk-live{position:absolute;top:-1px;right:2px;width:7px;height:7px;border-radius:50%;background:#2e9c46;box-shadow:0 0 0 2px rgba(46,156,70,.3)}
+.btn-sem-hoy:disabled{opacity:.4;cursor:default}
+.btn-sem-hoy:disabled:hover{background:transparent}
 .btn-nav{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:11px;padding:4px 8px;border-radius:4px;cursor:pointer;transition:background .15s ease-out,transform .1s ease-out}
 .btn-nav:active{transform:scale(0.95)}
 .btn-nav:hover{background:rgba(255,255,255,.22)}
@@ -154,6 +168,16 @@ body{font-size:13px;color:#1a1a18;min-height:100vh;background:var(--bg)}
 .mci-block{background:var(--surface);border:1px solid var(--border2);border-radius:8px;overflow:hidden}
 .mci-hdr{background:var(--mid);padding:9px 14px;display:flex;align-items:center;gap:8px}
 .mci-num{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+/* Banner llamativo del MCI general (encabezado del bloque) */
+.mci-banner{position:relative;display:flex;align-items:center;gap:14px;background:var(--cb);border-bottom:1px solid var(--border2);padding:14px 20px 14px 24px;overflow:hidden}
+.mci-banner-dot{position:absolute;left:0;top:0;bottom:0;width:11px;background:var(--c)}
+.mci-banner .mci-num{width:30px;height:30px;border-radius:7px;background:var(--navy);color:#fff;font-size:16px;font-weight:900}
+.mci-banner-mid{flex:1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
+.mci-banner-tit{font-size:19px;font-weight:800;color:var(--navy)}
+.mci-banner-pill{background:var(--c);color:#fff;font-weight:800;font-size:12px;padding:5px 12px;border-radius:20px;white-space:nowrap}
+.mci-banner-big{font-size:52px;font-weight:900;line-height:.9;color:var(--ct);font-family:'Lato',sans-serif}
+.mci-banner-big span{font-size:24px;font-weight:800}
+@media (max-width:600px){.mci-banner-big{font-size:40px}.mci-banner-tit{font-size:16px}}
 .mci-tit{font-size:13px;font-weight:700;color:#fff;flex:1}
 .mci-avg{font-size:24px;font-weight:900;color:#fff;letter-spacing:-.02em;line-height:1;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:6px}
 .badge{padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700}
@@ -192,7 +216,7 @@ body{font-size:13px;color:#1a1a18;min-height:100vh;background:var(--bg)}
 .pblock{background:var(--surface);border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:12px}
 .pbhdr{background:var(--surf2);padding:9px 14px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between}
 .pbhdr h3{font-size:12px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.04em}
-.ptbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ptbl-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
 table.ptbl{width:100%;border-collapse:collapse}
 table.ptbl th{font-size:10px;color:var(--text-3);font-weight:600;text-align:left;padding:7px 14px 5px;border-bottom:1px solid #eee}
 table.ptbl td{padding:8px 14px;border-bottom:1px solid var(--surf3);font-size:12px;vertical-align:middle}
@@ -301,6 +325,20 @@ table.ptbl tr:hover td{background:#fafaf8}
 .waeinp{font-size:12px;padding:5px 7px;border:1px solid var(--border);border-radius:5px;outline:none;color:#222;background:var(--surface);width:100%}
 .waeinp:focus{border-color:var(--mid);box-shadow:0 0 0 2px rgba(27,58,107,.12)}
 .waeinp-sm{max-width:60px}
+/* Selectores (rol de elemento) con la misma apariencia que .waeinp */
+.waesel{cursor:pointer;background:var(--surface);appearance:auto}
+.waefield-rol{max-width:150px}
+/* Campo de captura semanal: destacado por ser el que se toca cada semana */
+.waefield-actual{max-width:120px;order:-1;background:#fff8ec;border:1px solid #f0c674;border-radius:6px;padding:4px 6px;margin:-1px 2px -1px -1px}
+.waefield-actual .waelbl{color:#a76a00}
+.waefield-actual .waeinp{border-color:#f0c674;background:#fffdf7;font-weight:700}
+.waefield-actual .waeinp:focus{border-color:#d99400;box-shadow:0 0 0 2px rgba(217,148,0,.18)}
+/* Controles de configuración de gráfica en el encabezado del MCI */
+.wagcfg-lbl{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.3px}
+.wagcfg-sel,.wagcfg-inp{font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;outline:none;color:#222;background:var(--surface);text-transform:none;font-weight:400}
+.wagcfg-sel{cursor:pointer}
+.wagcfg-inp{max-width:70px}
+.wagcfg-sel:focus,.wagcfg-inp:focus{border-color:var(--mid);box-shadow:0 0 0 2px rgba(27,58,107,.12)}
 .waeuni{font-size:10px;color:var(--text-4);margin-top:2px}
 .waedel{position:absolute;top:6px;right:6px;background:none;border:none;font-size:15px;color:var(--text-4);cursor:pointer;line-height:1;padding:0 4px}
 .waedel:hover{color:var(--cta)}
@@ -421,6 +459,7 @@ table.ptbl tr:hover td{background:#fafaf8}
 .ctab-pane{background:var(--surface);border:1px solid var(--border2);border-radius:0 10px 10px 10px;padding:14px}
 .ctabs+.ctab-pane{margin-top:-1px}
 .renov-months{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.mchips{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .mlbl{font-size:11px;font-weight:700;color:var(--text-3)}
 .mchip{font-size:10px;font-weight:700;padding:3px 9px;border:1px solid var(--border2);background:var(--surface);color:var(--text-3);border-radius:14px;cursor:pointer;transition:background .12s}
 .mchip.on{background:#e65100;color:#fff;border-color:#e65100}
@@ -431,6 +470,44 @@ table.ptbl tr:hover td{background:#fafaf8}
 .rkpi.hl{border:2px solid #E0A800;background:var(--yellow-bg)}
 .rkv{font-size:23px;font-weight:900;color:var(--navy);font-family:'Lato',sans-serif}
 .rkl{font-size:10.5px;color:var(--text-3);margin-top:2px}
+/* Claves de vendedores — tarjetas KPI (2 columnas) */
+.cv-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+.cv-kpi{background:var(--surf2);border:1px solid var(--border2);border-radius:10px;padding:9px 10px;text-align:center;animation:dynIn .3s cubic-bezier(.23,1,.32,1) both;transition:transform .15s ease-out,box-shadow .15s ease-out}
+.cv-kpi:nth-child(2){animation-delay:.06s}
+.cv-kpi:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(5,23,46,.08)}
+.cv-kpi.hl{background:var(--surface);border-color:var(--border);box-shadow:0 1px 3px rgba(5,23,46,.06)}
+.cv-kv{font-size:22px;font-weight:900;color:var(--navy);font-family:'Lato',sans-serif;line-height:1;letter-spacing:-.01em}
+.cv-kl{font-size:9.5px;color:var(--text-3);margin-top:4px;line-height:1.25}
+@media (max-width:560px){.cv-kpis{grid-template-columns:1fr}}
+/* Claves de vendedores — fila: gráfica (flexible) + tarjeta de mes (fija) */
+.cv-chart-row{display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;margin-top:10px}
+.cv-chart-row .renov-card{margin-top:0}
+.cv-chart-col{flex:1 1 320px;min-width:0}
+.cv-month-card{flex:0 0 190px;display:flex;flex-direction:column;justify-content:center;background:var(--surf2);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center;animation:dynIn .32s cubic-bezier(.23,1,.32,1) both;animation-delay:.1s;transition:transform .15s ease-out,box-shadow .15s ease-out}
+.cv-month-card:hover{transform:translateY(-2px);box-shadow:0 5px 14px rgba(5,23,46,.1)}
+.cv-mc-title{font-size:12px;font-weight:800;letter-spacing:.02em;color:var(--text-3);text-transform:uppercase}
+.cv-mc-num{font-size:30px;font-weight:900;color:var(--navy);font-family:'Lato',sans-serif;line-height:1.05;letter-spacing:-.01em;margin-top:4px}
+.cv-mc-unit{font-size:11px;color:var(--text-3);font-weight:600;margin-top:1px}
+.cv-mc-sub{font-size:9.5px;color:var(--text-3);margin-top:6px;line-height:1.25}
+@media (max-width:520px){.cv-month-card{flex-basis:100%}}
+/* Claves de vendedores — leyenda como chips bajo la gráfica (móvil) */
+.cv-leg-chips{display:flex;flex-wrap:wrap;gap:5px 8px;justify-content:center;margin-top:8px}
+.cv-leg-chip{display:inline-flex;align-items:center;gap:5px;font-size:8.5px;color:var(--ink)}
+.cv-leg-chip i{width:9px;height:9px;border-radius:2px;flex-shrink:0;display:inline-block}
+.cv-leg-chip i.cv-leg-line{width:11px;height:0;border-radius:0;border-top:2px solid #f28e2b}
+/* Claves de vendedores — captura en Admin */
+.cv-admin{padding:2px}
+.cv-meta-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cv-meta-row .cv-num{width:80px}
+.cv-wk-hdr{font-size:11px;color:var(--ink);background:var(--yellow-bg);border:1px solid #f0c674;border-radius:6px;padding:5px 8px;margin-bottom:8px}
+.cv-wk-hdr span{color:var(--text-3);font-size:10px}
+.cv-rows .cv-row{display:flex;align-items:center;gap:6px;padding:4px 2px;border-bottom:1px solid var(--surf3)}
+.cv-rows .cv-row:last-child{border-bottom:none}
+.cv-row-hdr{padding-bottom:2px;border-bottom:1px solid #e0ddd8!important}
+.cv-row .cv-est{flex:1;min-width:0}
+.cv-row .cv-num{width:60px;flex-shrink:0}
+.cv-add{display:flex;align-items:center;gap:6px;margin-top:8px}
+.cv-add .cv-add-inp{flex:1;min-width:0}
 .renov-card{background:var(--surf2);border:1px solid var(--border2);border-radius:10px;padding:10px 12px;margin-top:10px}
 .renov-ct{font-size:12px;font-weight:800;color:var(--navy);text-align:center;margin-bottom:4px}
 /* animaciones del dashboard de renovación */
