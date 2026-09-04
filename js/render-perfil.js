@@ -169,31 +169,78 @@ function contribMedidasHTML(c, ro) {
 }
 
 // ── Contributivo tipo DASHBOARD de renovación ──────────────────────────────
+// Captura semanal por gerencia (ver render-admin-contrib.js): las gerencias
+// se definen UNA sola vez y cada semana solo se actualiza su base/% 1er
+// recibo — nunca se acumula, cada captura sustituye a la anterior (igual que
+// getWigVal). La vista por mes de este dashboard se RECONSTRUYE a partir de
+// esas capturas semanales, con el mismo criterio que predMesVal/wigBarrasMes:
+// el valor "a fecha" de un mes es el último capturado hasta su última semana,
+// acotado a la semana global `sem` en vista.
+
+// Mes (1–12) hasta el que hay vista según la semana global `sem`. El filtro
+// de mes no debe asomar datos de meses futuros a la semana que se está viendo.
+function _renovMesVistaIdx() { return MES_DE_SEM[sem] + 1; }
+
+// Snapshot de UN mes (1–12): valores por gerencia "a fecha" de ese mes.
+// null si ninguna gerencia tenía captura todavía en ese punto.
+function _renovMesSnapshot(dash, m) {
+  const gers = (dash.gerencias || []).map(g => {
+    const base = renovGerVal(g.id, m - 1, 'base');
+    const pct  = renovGerVal(g.id, m - 1, 'pct');
+    return (base === undefined || pct === undefined) ? null : { g: g.nombre, acro: g.acro, base, pct };
+  }).filter(Boolean);
+  if (!gers.length) return null;
+  const base = gers.reduce((a, g) => a + g.base, 0);
+  const pct  = base ? Math.round(gers.reduce((a, g) => a + g.base * g.pct, 0) / base * 10) / 10 : 0;
+  return { pct, base, gers, maduro: !!(dash.madurez && dash.madurez[m]), label: MESES_LARGO[m - 1] };
+}
+
 // Consolida la vista según el filtro de mes (renovMes): 'todos' o el número de mes.
+// Acota siempre a meses <= la semana en curso, aunque `sel` venga de un estado
+// previo (ej. se navegó a una semana anterior con un mes futuro seleccionado).
 function renovView(dash, sel) {
-  const meses = dash.meses || [];
+  const mesVista = _renovMesVistaIdx();
   if (sel === 'todos') {
-    const mad = meses.filter(x => x.maduro && x.base > 0);
-    const den = mad.reduce((a, x) => a + x.base, 0);
+    const snaps = [];
+    for (let m = 1; m <= mesVista; m++) {
+      const sn = _renovMesSnapshot(dash, m);
+      if (sn && sn.maduro && sn.base > 0) snaps.push(sn);
+    }
+    const den = snaps.reduce((a, x) => a + x.base, 0);
     const map = {};
-    mad.forEach(x => (x.ger || []).forEach(g => {
+    snaps.forEach(x => x.gers.forEach(g => {
       if (!map[g.g]) map[g.g] = { num: 0, den: 0, acro: g.acro };
       map[g.g].num += g.pct * g.base; map[g.g].den += g.base;
     }));
     const gers = Object.keys(map).map(k => ({ g: k, acro: map[k].acro, base: map[k].den, pct: map[k].den ? Math.round(map[k].num / map[k].den * 10) / 10 : 0 }));
-    return { pct: den ? Math.round(mad.reduce((a, x) => a + x.pct1er * x.base, 0) / den * 10) / 10 : null,
+    return { pct: den ? Math.round(snaps.reduce((a, x) => a + x.pct * x.base, 0) / den * 10) / 10 : null,
              base: den, gers, maduro: true, label: 'Todos · maduros' };
   }
-  const mm = meses.find(x => x.m === sel);
-  if (!mm) return { pct: null, base: 0, gers: [], maduro: false, label: '' };
-  return { pct: mm.pct1er, base: mm.base, gers: (mm.ger || []).map(g => ({ g: g.g, acro: g.acro, base: g.base, pct: g.pct })), maduro: mm.maduro, label: mm.nombre };
+  if (sel > mesVista) return { pct: null, base: 0, gers: [], maduro: false, label: '' };
+  const sn = _renovMesSnapshot(dash, sel);
+  if (!sn) return { pct: null, base: 0, gers: [], maduro: !!(dash.madurez && dash.madurez[sel]), label: MESES_LARGO[sel - 1] };
+  return sn;
 }
 
 function renovDashHTML(c) {
-  const dash  = c.dash, meses = dash.meses || [], meta = dash.meta || 75, sel = renovMes;
-  const anyInm = meses.some(x => !x.maduro);
+  const dash = c.dash || (c.dash = { meta: 75, gerencias: [], madurez: {} });
+  const meta = dash.meta || 75;
+  const mesVista = _renovMesVistaIdx();
+  // Si el mes elegido quedó en el futuro al navegar a una semana anterior,
+  // recae a "Todos" (acotado a la vista) en vez de arrastrar una selección
+  // que ya no aplica a la semana que se está viendo.
+  if (renovMes !== 'todos' && renovMes > mesVista) renovMes = 'todos';
+  const sel = renovMes;
+  const madurez = dash.madurez || {};
+  const anyInm = Array.from({ length: mesVista }, (_, i) => i + 1).some(m => !madurez[m]);
   const chips = `<button class="mchip ${sel === 'todos' ? 'on' : ''}" data-mes="todos" onclick="selRenovMes('todos')">Todos</button>` +
-    meses.map(x => `<button class="mchip ${sel === x.m ? 'on' : ''} ${x.maduro ? '' : 'dim'}" data-mes="${x.m}" onclick="selRenovMes(${x.m})">${x.nombre}${x.maduro ? '' : '*'}</button>`).join('');
+    MESES_LARGO.map((nm, i) => {
+      const m = i + 1, futuro = m > mesVista, maduro = !!madurez[m];
+      const cls = `mchip ${sel === m ? 'on' : ''} ${(!maduro || futuro) ? 'dim' : ''}`;
+      return futuro
+        ? `<button class="${cls}" data-mes="${m}" disabled title="Aún no llega esa semana en la vista actual">${MESES_CORTOS[i]}</button>`
+        : `<button class="${cls}" data-mes="${m}" onclick="selRenovMes(${m})">${MESES_CORTOS[i]}${maduro ? '' : '*'}</button>`;
+    }).join('');
   const nota  = anyInm ? `<span class="mnote">* meses en maduración (1er recibo por cobrarse)</span>` : '';
   const cMcis = (c.mciAlineados || []).slice().sort((a,b)=>a-b);
   const cBadges = cMcis.length
@@ -222,27 +269,84 @@ function renovDynHTML(dash, meta) {
 
 function renovLineSVG(dash, meta) {
   // Acumulado: en cada mes, % = Σ(1er recibo ene..mes) ÷ Σ(base ene..mes).
+  // Acotado a la semana en vista: un mes futuro a esa semana no debe verse
+  // en la línea aunque sus gerencias ya tengan captura por adelantado.
+  const mesVista = _renovMesVistaIdx();
   let sb = 0, su = 0;
-  const pts = (dash.meses || []).filter(x => x.maduro && x.base > 0).map(x => {
-    sb += x.base; su += x.base * x.pct1er / 100;
-    return { nombre: x.nombre, val: Math.round(su / sb * 1000) / 10 };
-  });
-  const W = 620, H = 150, PL = 30, PR = 12, TOP = 16, BOT = 26, baseY = H - BOT, plotH = baseY - TOP;
-  const ymin = 50, ymax = 80;
+  const pts = [];
+  for (let m = 1; m <= mesVista; m++) {
+    const sn = _renovMesSnapshot(dash, m);
+    if (!sn || !sn.maduro || !(sn.base > 0)) continue;
+    sb += sn.base; su += sn.base * sn.pct / 100;
+    pts.push({ nombre: MESES_CORTOS[m - 1], val: Math.round(su / sb * 1000) / 10 });
+  }
+
+  // Lienzo ancho y responsivo (ocupa el 100% de la tarjeta, ya no un tamaño
+  // fijo en píxeles pegado a la izquierda) — una sola escala funciona bien
+  // para hasta 12 puntos, así que no hace falta scroll horizontal aquí.
+  const N = pts.length, W = 720, H = 230, PL = 42, PR = 26, TOP = 34, BOT = 34;
+  const baseY = H - BOT, plotH = baseY - TOP;
+  const xOf = i => N <= 1 ? PL + (W - PL - PR) / 2 : PL + i * (W - PL - PR) / (N - 1);
+
+  // Escala del eje Y DINÁMICA: se ajusta al rango real de los valores (y de
+  // la meta, para que su línea nunca quede fuera de cuadro) en vez de un
+  // rango fijo — así la gráfica sigue siendo legible aunque el % de
+  // renovación suba, baje o cambie de nivel con el tiempo.
+  const vals = (pts.length ? pts.map(p => p.val) : []).concat([meta]);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const span = Math.max(hi - lo, 1);
+  const step = [1, 2, 5, 10, 20, 25, 50].find(st => st >= span / 4) || 50;
+  let ymin = Math.max(0,   Math.floor((lo - step / 2) / step) * step);
+  let ymax = Math.min(100, Math.ceil((hi + step / 2) / step) * step);
+  if (ymax <= ymin) ymax = ymin + step;
   const yOf = v => baseY - (v - ymin) / (ymax - ymin) * plotH;
-  const xOf = i => PL + (pts.length <= 1 ? 0 : i * (W - PL - PR) / (pts.length - 1));
-  let s = '';
-  [55, 60, 65, 70, 75].forEach(g => { const y = yOf(g); s += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="rgba(5,23,46,.09)"/><text x="${PL-4}" y="${(y+3).toFixed(1)}" font-size="9" fill="var(--text-3)" text-anchor="end">${g}</text>`; });
+
+  let grid = '';
+  for (let g = ymin; g <= ymax + 0.001; g += step) {
+    const y = yOf(g);
+    grid += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${(W - PR).toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(5,23,46,.07)"/><text x="${(PL - 8).toFixed(1)}" y="${(y + 3).toFixed(1)}" font-size="10" fill="var(--text-3)" text-anchor="end">${Math.round(g)}</text>`;
+  }
+
   const my = yOf(meta);
-  s += `<line x1="${PL}" y1="${my.toFixed(1)}" x2="${W-PR}" y2="${my.toFixed(1)}" stroke="#dc2626" stroke-width="1.2" stroke-dasharray="6 3"/><text x="${W-PR}" y="${(my-3).toFixed(1)}" font-size="9" font-weight="800" fill="#dc2626" text-anchor="end">meta ${meta}%</text>`;
-  const poly = pts.map((x, i) => `${xOf(i).toFixed(1)},${yOf(x.val).toFixed(1)}`).join(' ');
-  s += `<polyline class="rline" points="${poly}" fill="none" stroke="#1e88e5" stroke-width="2.5" stroke-linejoin="round"/>`;
-  pts.forEach((x, i) => {
-    s += `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(x.val).toFixed(1)}" r="3" fill="#1e88e5"><title>Acum. a ${x.nombre}: ${x.val}%</title></circle>`;
-    s += `<text x="${xOf(i).toFixed(1)}" y="${(yOf(x.val)-7).toFixed(1)}" font-size="8.5" font-weight="700" fill="#1565c0" text-anchor="middle">${x.val}</text>`;
-    s += `<text x="${xOf(i).toFixed(1)}" y="${(baseY+14).toFixed(1)}" font-size="9" fill="var(--text-3)" text-anchor="middle">${x.nombre}</text>`;
+  const metaLine = `<line x1="${PL}" y1="${my.toFixed(1)}" x2="${(W - PR).toFixed(1)}" y2="${my.toFixed(1)}" stroke="#dc2626" stroke-width="1.4" stroke-dasharray="7 4"/>
+    <g transform="translate(${(W - PR).toFixed(1)},${my.toFixed(1)})">
+      <rect x="-60" y="-15" width="60" height="17" rx="8.5" fill="#dc2626"/>
+      <text x="-30" y="-3" font-size="9.5" font-weight="800" fill="#fff" text-anchor="middle">meta ${meta}%</text>
+    </g>`;
+
+  // Degradado bajo la línea: le da presencia visual ("marca del equipo",
+  // motivador) sin competir con el dato — puramente decorativo.
+  const gid = 'renovFill' + Math.random().toString(36).slice(2, 8);
+  let area = '', poly = '';
+  if (N) {
+    const top = pts.map((p, i) => `${xOf(i).toFixed(1)},${yOf(p.val).toFixed(1)}`).join(' L ');
+    area = `<path d="M ${xOf(0).toFixed(1)},${baseY.toFixed(1)} L ${top} L ${xOf(N - 1).toFixed(1)},${baseY.toFixed(1)} Z" fill="url(#${gid})" class="rarea"/>`;
+    poly = `<polyline class="rline" points="${pts.map((p, i) => `${xOf(i).toFixed(1)},${yOf(p.val).toFixed(1)}`).join(' ')}" fill="none" stroke="#1e88e5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+
+  let dots = '', vals2 = '', months = '';
+  pts.forEach((p, i) => {
+    const cx = xOf(i), cy = yOf(p.val), last = i === N - 1, first = i === 0, delay = (.45 + i * .07).toFixed(2);
+    // El primer y último punto anclan su etiqueta hacia ADENTRO del plot (no
+    // centrada) — si quedan a la misma altura que un número del eje Y o del
+    // borde derecho, no se le encima: nunca se sale del área de dibujo.
+    const anchor = first ? 'start' : last ? 'end' : 'middle';
+    const lx = first ? cx + 4 : last ? cx - 4 : cx;
+    months += `<text x="${cx.toFixed(1)}" y="${(baseY + 20).toFixed(1)}" font-size="10.5" fill="var(--text-3)" text-anchor="${first ? 'start' : last ? 'end' : 'middle'}">${p.nombre}</text>`;
+    vals2  += `<text x="${lx.toFixed(1)}" y="${(cy - (last ? 16 : 11)).toFixed(1)}" font-size="${last ? 12 : 10.5}" font-weight="800" fill="#1565c0" text-anchor="${anchor}" class="rpt-lbl" style="animation-delay:${delay}s">${p.val}%</text>`;
+    // El punto MÁS RECIENTE se destaca con un halo pulsante — "estado antes
+    // que historia": el ojo va directo a dónde estamos hoy.
+    if (last) dots += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="9" fill="#1e88e5" class="rpt-pulse"/>`;
+    dots += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${last ? 5.5 : 3.5}" fill="#1e88e5" stroke="#fff" stroke-width="${last ? 2.5 : 1.5}" class="rpt-dot" style="animation-delay:${delay}s"><title>Acum. a ${p.nombre}: ${p.val}%</title></circle>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:80%;min-width:336px;height:auto;display:block;margin:0 auto" role="img">${s}</svg>`;
+
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:280px;height:auto;display:block" role="img">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e88e5" stop-opacity=".3"/>
+      <stop offset="100%" stop-color="#1e88e5" stop-opacity="0"/>
+    </linearGradient></defs>
+    ${grid}${metaLine}${area}${poly}${dots}${vals2}${months}
+  </svg>`;
 }
 
 function renovBarsSVG(gers, meta) {

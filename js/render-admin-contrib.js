@@ -43,7 +43,9 @@ function adminContribHTML() {
 
       const body = (c.tipo === 'clavesvend')
         ? clavesVendAdminHTML(c)
-        : `<div class="mcont-preds">
+        : (c.tipo === 'renovacion')
+          ? renovAdminHTML(c)
+          : `<div class="mcont-preds">
           <div class="predrow predrow-hdr">
             <span class="waelbl" style="flex:1">Medida</span>
             <span class="waelbl" style="width:60px">Meta</span>
@@ -470,4 +472,164 @@ function saveContrib() {
   renderTablero();
   guardarConfig();
   toast('MCI contributivo agregado', 'ok');
+}
+
+// ── Captura manual · Renovación (tipo 'renovacion', ej. Sandra Martínez) ────
+// Las GERENCIAS se definen UNA sola vez (catálogo) y ya no se repiten por
+// mes. Lo único que se captura periódicamente es, por gerencia, su base y
+// % 1er recibo de la SEMANA en curso (usa el navegador de semanas global,
+// igual que "claves de vendedores" o los WIGs) — cada captura SUSTITUYE a la
+// anterior, nunca se acumula. La vista por mes del perfil (render-perfil.js)
+// reconstruye cada mes a partir de estas capturas semanales, así que el
+// filtro de mes existente sigue funcionando igual, solo que ya no hay que
+// re-teclear las gerencias cada mes. "Maduro" (si el 1er recibo de un mes ya
+// se cobró) sigue siendo un juicio manual — no se puede derivar de los
+// números — y se marca por mes con un checkbox aparte.
+
+// Localiza un MCI contributivo por id en cualquier integrante.
+function _findContrib(cid) {
+  for (const m of ST.miembros) {
+    const c = (m.contributivos || []).find(x => x.id === cid);
+    if (c) return c;
+  }
+  return null;
+}
+
+function saveRenovMeta(cid, val) {
+  const c = _findContrib(cid); if (!c) return;
+  if (!c.dash) c.dash = { meta: 75, gerencias: [], madurez: {} };
+  c.dash.meta = Math.max(0, parseFloat(val) || 0);
+  renderPerfil();
+  guardarConfig();
+}
+
+// Marca/desmarca un mes calendario (1–12) como "maduro". No tiene sentido
+// marcar un mes futuro a la semana en vista, así que esos llegan deshabilitados.
+function toggleRenovMaduro(cid, mNum, checked) {
+  const c = _findContrib(cid); if (!c) return;
+  if (!c.dash) c.dash = { meta: 75, gerencias: [], madurez: {} };
+  if (!c.dash.madurez) c.dash.madurez = {};
+  c.dash.madurez[mNum] = !!checked;
+  renderPerfil();
+  guardarConfig();
+}
+
+// ── Catálogo de gerencias (se define una sola vez, no por mes) ─────────────
+function addRenovGerencia(cid) {
+  const c = _findContrib(cid); if (!c) return;
+  if (!c.dash) c.dash = { meta: 75, gerencias: [], madurez: {} };
+  if (!c.dash.gerencias) c.dash.gerencias = [];
+  c.dash.gerencias.push({ id: uid(), nombre: 'Nueva gerencia', acro: '' });
+  renderAdmin();
+  guardarConfig();
+}
+
+function saveRenovGerenciaField(cid, gerId, field, val) {
+  const c = _findContrib(cid); if (!c) return;
+  const g = (c.dash?.gerencias || []).find(x => x.id === gerId);
+  if (!g) return;
+  g[field] = val;
+  renderPerfil();
+  guardarConfig();
+}
+
+async function delRenovGerencia(cid, gerId) {
+  const c = _findContrib(cid); if (!c) return;
+  const g = (c.dash?.gerencias || []).find(x => x.id === gerId);
+  if (!g) return;
+  const ok = await confirmar({
+    titulo: 'Quitar gerencia',
+    mensaje: `¿Quitar "${esc(g.nombre || 'esta gerencia')}" del catálogo? Su historial de capturas semanales deja de mostrarse (no cuenta más en el perfil).`,
+    ok: 'Quitar', peligro: true,
+  });
+  if (!ok) return;
+  c.dash.gerencias = c.dash.gerencias.filter(x => x.id !== gerId);
+  renderAdmin();
+  renderPerfil();
+  guardarConfig();
+  toast('Gerencia quitada', 'ok');
+}
+
+// ── Captura SEMANAL por gerencia (sustituye, no se acumula) ────────────────
+// Igual patrón que saveWigActual: escribe en la semana activa `sem` y guarda
+// ese documento de semana (no el config), consistente con el resto de la app.
+function saveRenovGerWeekly(cid, gerId, field, val) {
+  const c = _findContrib(cid); if (!c) return;
+  const s = getSem(sem);
+  if (!s.renov) s.renov = {};
+  if (!s.renov[gerId]) s.renov[gerId] = {};
+  s.renov[gerId][field] = parseFloat(val) || 0;
+  renderPerfil();
+  guardarSemana(sem);
+}
+
+function renovAdminHTML(c) {
+  const dash = c.dash || (c.dash = { meta: 75, gerencias: [], madurez: {} });
+  if (!dash.gerencias) dash.gerencias = [];
+  if (!dash.madurez)   dash.madurez   = {};
+  const mesVista = _renovMesVistaIdx();
+  const rango = SEMANAS[sem] || '';
+
+  const gerCatalogRows = dash.gerencias.map(g => `<div class="rg-row" data-gid="${g.id}">
+      <input type="text" class="predinp rg-nom" autocomplete="off" value="${esc(g.nombre || '')}" placeholder="Gerencia"
+        onchange="saveRenovGerenciaField('${c.id}','${g.id}','nombre',this.value)">
+      <input type="text" class="predinp rg-acro" autocomplete="off" value="${esc(g.acro || '')}" placeholder="Acrónimo"
+        onchange="saveRenovGerenciaField('${c.id}','${g.id}','acro',this.value)">
+      <button type="button" class="preddel" title="Quitar gerencia" onclick="delRenovGerencia('${c.id}','${g.id}')">×</button>
+    </div>`).join('')
+    || '<div style="font-size:11px;color:var(--text-3);padding:4px 2px">Sin gerencias — agrega una abajo.</div>';
+
+  const madurezChips = MESES_LARGO.map((nm, i) => {
+    const m = i + 1, futuro = m > mesVista;
+    return `<label class="renov-maduro-chip ${futuro ? 'dim' : ''}" ${futuro ? 'title="Aún no llega esa semana en la vista actual"' : ''}>
+      <input type="checkbox" ${dash.madurez[m] ? 'checked' : ''} ${futuro ? 'disabled' : ''}
+        onchange="toggleRenovMaduro('${c.id}',${m},this.checked)">
+      ${MESES_CORTOS[i]}
+    </label>`;
+  }).join('');
+
+  const capRows = dash.gerencias.length ? dash.gerencias.map(g => {
+    const wkBase = getRenovVal(sem, g.id, 'base');
+    const wkPct  = getRenovVal(sem, g.id, 'pct');
+    return `<div class="rg-row" data-gid="${g.id}">
+      <span class="rg-cap-nom">${esc(g.nombre || '(sin nombre)')}</span>
+      <input type="number" class="predinp rg-num" value="${wkBase ?? ''}" placeholder="Base" title="Base renovable"
+        onchange="saveRenovGerWeekly('${c.id}','${g.id}','base',this.value)">
+      <input type="number" class="predinp rg-num" step="0.1" value="${wkPct ?? ''}" placeholder="%" title="% 1er recibo"
+        onchange="saveRenovGerWeekly('${c.id}','${g.id}','pct',this.value)">
+    </div>`;
+  }).join('') : '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Agrega gerencias arriba para poder capturar la semana.</div>';
+
+  return `<div class="renov-admin">
+    <div class="cv-meta-row">
+      <label class="waelbl">Meta de renovación (%)</label>
+      <input type="number" class="predinp cv-num" min="0" max="100" value="${dash.meta ?? 75}"
+        onchange="saveRenovMeta('${c.id}',this.value)">
+    </div>
+
+    <div class="waelbl" style="margin:10px 0 4px">Gerencias (catálogo — se define una sola vez)</div>
+    <div class="rg-rows">
+      <div class="rg-row rg-row-hdr">
+        <span class="waelbl" style="flex:1">Gerencia</span>
+        <span class="waelbl" style="width:70px">Acrónimo</span>
+        <span style="width:22px"></span>
+      </div>
+      ${gerCatalogRows}
+    </div>
+    <button type="button" class="waeadd" style="font-size:10px;padding:3px 8px;margin-top:6px"
+      onclick="addRenovGerencia('${c.id}')">+ Agregar gerencia</button>
+
+    <div class="waelbl" style="margin:14px 0 4px">Meses maduros (1er recibo ya cobrado)</div>
+    <div class="renov-maduro-chips">${madurezChips}</div>
+
+    <div class="cv-wk-hdr">Captura de <b>Sem ${sem}</b>${rango ? ` · ${esc(rango)}` : ''} <span>(usa el navegador de semanas)</span></div>
+    <div class="rg-rows">
+      <div class="rg-row rg-row-hdr">
+        <span class="waelbl" style="flex:1">Gerencia</span>
+        <span class="waelbl" style="width:70px">Base</span>
+        <span class="waelbl" style="width:70px">% 1er recibo</span>
+      </div>
+      ${capRows}
+    </div>
+  </div>`;
 }

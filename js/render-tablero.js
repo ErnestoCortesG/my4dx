@@ -51,15 +51,26 @@ function renderTablero() {
   const MESES_G = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const _colFill = p => p >= 100 ? 'var(--green)'    : p >= 50 ? 'var(--yellow)'    : 'var(--cta)';
   const _colDk   = p => p >= 100 ? 'var(--green-dk)' : p >= 50 ? 'var(--yellow-dk)' : 'var(--red-dk)';
-  const PALETA_GRUPO = ['#2563eb', '#ea580c', '#7c3aed', '#0d9488'];
+  // Tonos elegidos para pasar WCAG AA (≥4.5:1) tanto como texto sobre blanco
+  // como texto blanco sobre el relleno (ver DESIGN.md: "leíble a distancia").
+  const PALETA_GRUPO = ['#2563eb', '#c2410c', '#7c3aed', '#0f766e'];
 
   // Banner llamativo del encabezado de un MCI general: número enorme + semáforo
   // grande + pastilla de estado, para identificar de un vistazo si va bien o mal.
-  function mciBannerHTML(num, tit, avg) {
+  // `info` acepta { avg, raw, uni } (bannerAvgMCI) o, por compatibilidad con el
+  // fallback de un solo elemento, un número plano (avg). El semáforo SIEMPRE usa
+  // `avg` (progreso hacia la meta); el número grande muestra `raw` tal cual
+  // cuando existe (elemento fuente ya en %, capturado directo en Administración
+  // y que se reemplaza cada vez, sin acumular) — si no, muestra `avg`.
+  function mciBannerHTML(num, tit, info) {
+    const esObj = info !== null && typeof info === 'object';
+    const avg = esObj ? info.avg : info;
+    const raw = esObj ? info.raw : null;
     const st = avg === null ? { c:'#8a97a3', ct:'#8a97a3', cb:'var(--surf2)', txt:'Sin datos' }
       : avg >= 100 ? { c:'#2e9c46', ct:'#2e9c46', cb:'#eefaf0', txt:'VERDE · vamos bien' }
       : avg >= 50  ? { c:'#E0A800', ct:'#b87900', cb:'#fffaed', txt:'AMARILLO · atención' }
       :              { c:'#E02500', ct:'#E02500', cb:'#fff2ef', txt:'ROJO · vamos mal' };
+    const num2 = (raw !== null && raw !== undefined) ? Math.round(raw * 10) / 10 : avg;
     return `<div class="mci-banner" style="--c:${st.c};--ct:${st.ct};--cb:${st.cb}">
       <div class="mci-banner-dot"></div>
       <div class="mci-banner-mid">
@@ -67,7 +78,7 @@ function renderTablero() {
         <div class="mci-banner-tit">${esc(tit)}</div>
         <span class="mci-banner-pill">${st.txt}</span>
       </div>
-      <div class="mci-banner-big">${avg === null ? '—' : avg}<span>${avg === null ? '' : '%'}</span></div>
+      <div class="mci-banner-big">${avg === null ? '—' : num2}<span>${avg === null ? '' : '%'}</span></div>
     </div>`;
   }
   function wigBarrasMes(w) {
@@ -138,61 +149,106 @@ function renderTablero() {
   // Gráfica MENSUAL AGRUPADA: varias barras por mes (una por elemento), escala
   // 0–100%, con línea de meta de referencia. Para MCIs de elementos en % (ej.
   // conservación: Franquicias + Promotorías juntas).
-  function wigBarrasMesGrupo(ws, metaLinea) {
-    const W = 360, H = 152, PL = 8, PR = 8, TOP = 26, BOT = 42;
+  // Cada mes ocupa un ancho FIJO en px (no se reparte el total entre más
+  // meses): así, sin importar cuántos meses lleve el año capturados, las
+  // barras y sus etiquetas nunca se amontonan — si no caben en el ancho de
+  // la tarjeta, el carril hace scroll horizontal (como cualquier gráfica de
+  // serie temporal). Además dibuja, solo en meses ANTERIORES al actual, el
+  // valor que tuvo el banner del MCI (ej. Conservación global) ese mes —
+  // el mes en curso se omite porque ya se lee en el número grande del
+  // banner y puede seguir cambiando.
+  function wigBarrasMesGrupo(ws, metaLinea, bannerEl) {
+    const COL = 64, PL = 34, PR = 14, TOP = 34, BOT = 48, H = 198;
     const baseY = H - BOT, usable = baseY - TOP, vmax = 100;
     const hY = v => (v / vmax) * usable;
     const mesActual = MES_DE_SEM[sem];
     const fmt = v => (Math.round(v * 10) / 10).toString();
-    const info = ws.map((w, j) => {
+    // Semana con dato de un WIG por mes (última captura del mes hasta `sem`).
+    const calcCd = id => {
       const cd = {};
       for (let m = 0; m < 12; m++) {
         const lastWk = ULTIMA_SEM_MES[m], wkCap = lastWk ? Math.min(lastWk, sem) : 0;
         let tiene = false;
         if (lastWk) for (let k = 1; k <= wkCap; k++) {
-          if (MES_DE_SEM[k] === m && ST.semanas[k] && ST.semanas[k].wigs && ST.semanas[k].wigs[w.id] !== undefined) { tiene = true; break; }
+          if (MES_DE_SEM[k] === m && ST.semanas[k] && ST.semanas[k].wigs && ST.semanas[k].wigs[id] !== undefined) { tiene = true; break; }
         }
         cd[m] = tiene ? wkCap : 0;
       }
-      return { w, j, cd, color: PALETA_GRUPO[j % PALETA_GRUPO.length] };
-    });
+      return cd;
+    };
+    const info = ws.map((w, j) => ({ w, j, cd: calcCd(w.id), color: PALETA_GRUPO[j % PALETA_GRUPO.length] }));
     const monthHas = m => info.some(x => x.cd[m]);
     // Solo se muestran los meses con información.
     const mcon = [];
     for (let m = 0; m < 12; m++) if (monthHas(m)) mcon.push(m);
-    const slot = (W - PL - PR) / Math.max(mcon.length, 1);
-    const cxAt = i => PL + slot * i + slot / 2;
-    const grpW = Math.min(slot * 0.66, 90), bw = grpW / ws.length;
-    let barras = '', valores = '', meses = '', highlight = '';
+    const W = PL + PR + Math.max(mcon.length, 1) * COL;
+    const cxAt = i => PL + COL * i + COL / 2;
+    const grpW = COL * 0.7, bw = grpW / ws.length, bwv = bw - 3;
+
+    let grid = '', barras = '', valores = '', meses = '', highlight = '', bannerFila = '';
+    let bannerShown = false;
+    [25, 50, 75, 100].forEach(p => {
+      const y = baseY - hY(p);
+      grid += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${(W - PR).toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(5,23,46,.07)" stroke-width="1"/>`;
+      grid += `<text x="${(PL - 6).toFixed(1)}" y="${(y + 3).toFixed(1)}" font-size="8" fill="var(--text-4)" text-anchor="end">${p}</text>`;
+    });
     mcon.forEach((m, i) => {
       const cx = cxAt(i);
-      meses += `<text x="${cx.toFixed(1)}" y="${(baseY + 14).toFixed(1)}" font-size="9" fill="#666" text-anchor="middle">${MESES_G[m]}</text>`;
+      meses += `<text x="${cx.toFixed(1)}" y="${(baseY + 16).toFixed(1)}" font-size="9.5" font-weight="600" fill="#666" text-anchor="middle">${MESES_G[m]}</text>`;
       const grpStart = cx - grpW / 2;
       info.forEach(it => {
         if (!it.cd[m]) return;
         const val = getWigVal(it.cd[m], it.w.id);
         const bx = grpStart + it.j * bw;
         const bh = Math.max(hY(val), 1.5);
-        barras  += `<rect x="${bx.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${(bw - 1).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${it.color}"/>`;
-        valores += `<text x="${(bx + bw / 2).toFixed(1)}" y="${(baseY - bh - 2).toFixed(1)}" font-size="7" font-weight="700" fill="${it.color}" text-anchor="middle">${fmt(val)}</text>`;
+        const cxLbl = bx + bwv / 2;
+        barras += `<rect x="${bx.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${bwv.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${it.color}"><title>${esc(it.w.label)} · ${MESES_G[m]}: ${fmt(val)}%</title></rect>`;
+        // El valor va DENTRO de la barra (texto blanco) cuando hay alto
+        // suficiente — así la línea de meta, que queda detrás de las barras
+        // en el orden de dibujo, nunca atraviesa un número: donde cruzaría
+        // un texto, la barra ya la tapa. Solo si la barra es demasiado baja
+        // el valor se dibuja arriba, en el color de la serie.
+        valores += bh >= 16
+          ? `<text x="${cxLbl.toFixed(1)}" y="${(baseY - bh + 12).toFixed(1)}" font-size="9" font-weight="800" fill="#fff" text-anchor="middle">${fmt(val)}</text>`
+          : `<text x="${cxLbl.toFixed(1)}" y="${(baseY - bh - 4).toFixed(1)}" font-size="9" font-weight="800" fill="${it.color}" text-anchor="middle">${fmt(val)}</text>`;
       });
       if (m === mesActual) {
-        highlight += `<rect x="${(grpStart - 2).toFixed(1)}" y="${TOP.toFixed(1)}" width="${(grpW + 4).toFixed(1)}" height="${(baseY - TOP).toFixed(1)}" rx="3" fill="none" stroke="var(--navy)" stroke-width="1" stroke-dasharray="2 2"/>`;
+        highlight += `<rect x="${(grpStart - 3).toFixed(1)}" y="${TOP.toFixed(1)}" width="${(grpW + 6).toFixed(1)}" height="${(baseY - TOP).toFixed(1)}" rx="4" fill="none" stroke="var(--navy)" stroke-width="1" stroke-dasharray="2 2"/>`;
+      }
+      // Valor del banner (ej. Conservación global) para este mes: en TODOS
+      // los meses ANTERIORES al actual (el mes en curso se omite porque ya
+      // se lee en el número grande del banner y aún puede cambiar). Usa el
+      // mismo criterio que el número grande del banner (getWigVal con
+      // herencia hacia atrás), así que un mes sin captura propia hereda el
+      // último valor conocido — se ve en TODOS los meses hasta enero, nunca
+      // "sin dato". Va en una fila propia bajo el nombre del mes, así que
+      // nunca compite por altura con las barras, la línea de meta ni sus
+      // valores.
+      if (bannerEl && m < mesActual) {
+        const lastWk = ULTIMA_SEM_MES[m];
+        const wk = lastWk ? Math.min(lastWk, sem) : sem;
+        const val = getWigVal(wk, bannerEl.id);
+        bannerFila += `<text x="${cx.toFixed(1)}" y="${(baseY + 30).toFixed(1)}" font-size="8.5" font-weight="800" fill="var(--navy)" text-anchor="middle">${fmt(val)}%</text>`;
+        bannerShown = true;
       }
     });
     const metaY = baseY - hY(metaLinea);
-    const metaLine = `<line x1="${PL}" y1="${metaY.toFixed(1)}" x2="${W - PR}" y2="${metaY.toFixed(1)}" stroke="var(--cta)" stroke-width="1.2" stroke-dasharray="5 3"/>`;
-    let leyenda = '';
-    info.forEach((it, i) => {
-      const lx = PL + i * 92;
-      leyenda += `<rect x="${lx}" y="4" width="9" height="9" rx="2" fill="${it.color}"/><text x="${lx + 12}" y="12" font-size="8.5" fill="var(--ink)">${esc(it.w.label)}</text>`;
-    });
-    return `<svg viewBox="0 0 ${W} ${H}" class="wig-bar-svg" aria-hidden="true">
-      ${leyenda}${metaLine}${barras}${highlight}${valores}
-      <line x1="${PL}" y1="${baseY}" x2="${W - PR}" y2="${baseY}" stroke="rgba(5,23,46,.15)" stroke-width="1"/>
-      <text x="${W - PR}" y="${(metaY - 3).toFixed(1)}" font-size="8" font-weight="700" fill="var(--cta)" text-anchor="end">meta ${fmt(metaLinea)}%</text>
-      ${meses}
-    </svg>`;
+    const metaLine = `<line x1="${PL}" y1="${metaY.toFixed(1)}" x2="${(W - PR).toFixed(1)}" y2="${metaY.toFixed(1)}" stroke="var(--cta)" stroke-width="1.2" stroke-dasharray="5 3"/>`;
+    // Etiqueta de meta a la IZQUIERDA (junto al eje): a la derecha, pegada al
+    // último grupo de barras, chocaba con sus valores y con la fila del banner.
+    const metaLbl = `<text x="${(PL + 3).toFixed(1)}" y="${(metaY - 4).toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--cta)" text-anchor="start">meta ${fmt(metaLinea)}%</text>`;
+
+    const leyenda = `<div class="chart-legend">
+      ${info.map(it => `<span class="chart-legend-item"><span class="chart-legend-sw" style="background:${it.color}"></span>${esc(it.w.label)}</span>`).join('')}
+      ${bannerShown ? `<span class="chart-legend-item"><span class="chart-legend-sw" style="background:var(--navy)"></span>${esc(bannerEl.label)} · meses cerrados</span>` : ''}
+    </div>`;
+
+    return `${leyenda}<div class="wig-track-scroll"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="wig-bar-svg-grupo" aria-hidden="true">
+      ${grid}${metaLine}${barras}${highlight}${valores}
+      <line x1="${PL}" y1="${baseY}" x2="${(W - PR).toFixed(1)}" y2="${baseY}" stroke="rgba(5,23,46,.15)" stroke-width="1"/>
+      ${metaLbl}
+      ${meses}${bannerFila}
+    </svg></div>`;
   }
 
   // Gráfica MENSUAL APILADA: por cada mes con dato, una barra apilada con un
@@ -270,6 +326,7 @@ function renderTablero() {
 
   function mciBloque(num, tit, ws) {
     const barras = ws.filter(w => w.rol !== 'banner');
+    const bannerEl = ws.find(w => w.rol === 'banner');
     // Tipo de gráfica: explícito en ST.mciCfg[num].tipo; si falta se infiere
     // ('agrupada' si toda barra está en %, si no 'apilada').
     const cfg = ST.mciCfg?.[num];
@@ -282,7 +339,7 @@ function renderTablero() {
       const avgB = (typeof bannerAvgMCI === 'function') ? bannerAvgMCI(num, ws) : null;
       const chart = tipo === 'apilada'
         ? wigBarrasApilada(barras, (cfg?.metaLinea ?? 550))
-        : wigBarrasMesGrupo(barras, (cfg?.metaLinea ?? 70));
+        : wigBarrasMesGrupo(barras, (cfg?.metaLinea ?? 70), bannerEl);
       return `<div class="mci-block">
         ${mciBannerHTML(num, tit, avgB)}
         <div class="wig-pair"><div class="wrow">

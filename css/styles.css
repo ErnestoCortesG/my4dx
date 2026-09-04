@@ -192,6 +192,15 @@ body{font-size:13px;color:#1a1a18;min-height:100vh;background:var(--bg)}
 .wig-val-row{display:flex;align-items:baseline;gap:6px;margin-bottom:3px}
 .wig-track{margin:6px 0 2px}
 .wig-bar-svg{width:80%;height:auto;display:block;margin:0 auto}
+/* Gráfica agrupada por mes (ej. Conservación): ancho fijo por mes + scroll
+   horizontal propio, para que nunca se amontone sin importar cuántos meses
+   ya tengan captura. */
+.chart-legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:10px 14px 0;font-size:11px;font-weight:600;color:var(--text-3)}
+.chart-legend-item{display:flex;align-items:center;gap:6px}
+.chart-legend-sw{width:10px;height:10px;border-radius:2.5px;flex-shrink:0}
+.chart-legend-sw.diamond{border-radius:1.5px;transform:rotate(45deg);width:8px;height:8px}
+.wig-track-scroll{margin:6px 0 2px;overflow-x:auto;padding-bottom:4px}
+.wig-bar-svg-grupo{display:block;height:198px;width:auto}
 .wig-semline{display:flex;align-items:center;gap:8px;padding:6px 14px 10px;border-top:1px dashed var(--border)}
 .wig-semline-lbl{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
 .wig-sem-val{font-size:13px;font-weight:800;color:var(--navy);flex-shrink:0}
@@ -464,6 +473,7 @@ table.ptbl tr:hover td{background:#fafaf8}
 .mchip{font-size:10px;font-weight:700;padding:3px 9px;border:1px solid var(--border2);background:var(--surface);color:var(--text-3);border-radius:14px;cursor:pointer;transition:background .12s}
 .mchip.on{background:#e65100;color:#fff;border-color:#e65100}
 .mchip.dim{opacity:.5}
+.mchip:disabled{opacity:.35;cursor:not-allowed}
 .mnote{font-size:9px;color:var(--text-3);margin-left:4px}
 .rkpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
 .rkpi{background:var(--surf2);border:1px solid var(--border2);border-radius:10px;padding:11px;text-align:center}
@@ -508,6 +518,21 @@ table.ptbl tr:hover td{background:#fafaf8}
 .cv-row .cv-num{width:60px;flex-shrink:0}
 .cv-add{display:flex;align-items:center;gap:6px;margin-top:8px}
 .cv-add .cv-add-inp{flex:1;min-width:0}
+
+/* Captura manual · Renovación (Admin > MCI contributivo tipo 'renovacion') */
+.renov-admin{padding:2px}
+.rg-rows .rg-row{display:flex;align-items:center;gap:6px;padding:4px 2px;border-bottom:1px solid var(--surf3)}
+.rg-rows .rg-row:last-child{border-bottom:none}
+.rg-row-hdr{padding-bottom:2px;border-bottom:1px solid #e0ddd8!important}
+.rg-row .rg-nom{flex:1;min-width:0}
+.rg-row .rg-acro{width:70px;flex-shrink:0}
+.rg-row .rg-num{width:70px;flex-shrink:0}
+.rg-row .rg-cap-nom{flex:1;min-width:0;font-size:12px;color:var(--ink)}
+.renov-maduro-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.renov-maduro-chip{display:flex;align-items:center;gap:5px;font-size:10.5px;color:#333;cursor:pointer;background:#f4f6fb;border:1px solid #dde3ee;border-radius:5px;padding:4px 8px}
+.renov-maduro-chip:has(input:checked){background:#e8eef8;border-color:var(--mid);color:var(--mid);font-weight:700}
+.renov-maduro-chip.dim{opacity:.45;cursor:not-allowed}
+.renov-maduro-chip input{accent-color:var(--mid);margin:0}
 .renov-card{background:var(--surf2);border:1px solid var(--border2);border-radius:10px;padding:10px 12px;margin-top:10px}
 .renov-ct{font-size:12px;font-weight:800;color:var(--navy);text-align:center;margin-bottom:4px}
 /* animaciones del dashboard de renovación */
@@ -518,11 +543,21 @@ table.ptbl tr:hover td{background:#fafaf8}
 .rkpi{transition:border-color .2s ease-out}
 .rbar{transform-box:fill-box;transform-origin:center bottom;animation:barGrow .42s cubic-bezier(.23,1,.32,1)}
 @keyframes barGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
-.rline{stroke-dasharray:1600;stroke-dashoffset:1600;animation:lineDraw .7s cubic-bezier(.23,1,.32,1) forwards}
+.rline{stroke-dasharray:2400;stroke-dashoffset:2400;animation:lineDraw .8s cubic-bezier(.23,1,.32,1) forwards}
 @keyframes lineDraw{to{stroke-dashoffset:0}}
+.rarea{opacity:0;animation:rareaIn .6s cubic-bezier(.23,1,.32,1) .35s forwards}
+@keyframes rareaIn{to{opacity:1}}
+.rpt-dot{transform-box:fill-box;transform-origin:center;opacity:0;transform:scale(0);animation:rdotIn .38s cubic-bezier(.23,1,.32,1) forwards}
+@keyframes rdotIn{to{opacity:1;transform:scale(1)}}
+.rpt-lbl{transform-box:fill-box;transform-origin:center;opacity:0;transform:translateY(5px);animation:rlblIn .35s cubic-bezier(.23,1,.32,1) forwards}
+@keyframes rlblIn{to{opacity:1;transform:translateY(0)}}
+.rpt-pulse{transform-box:fill-box;transform-origin:center;animation:rpulse 2.4s cubic-bezier(.23,1,.32,1) infinite}
+@keyframes rpulse{0%{opacity:.32;transform:scale(.6)}70%{opacity:0}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){
-  .dyn-in,.rbar,.rline{animation:none}
+  .dyn-in,.rbar,.rline,.rarea,.rpt-dot,.rpt-lbl,.rpt-pulse{animation:none}
   .rline{stroke-dashoffset:0}
+  .rarea,.rpt-dot,.rpt-lbl{opacity:1;transform:none}
+  .rpt-pulse{opacity:0}
 }
 .perf-sec-label{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
 .perf-mci-texto{font-size:14px;color:var(--ink);line-height:1.5;margin-bottom:12px;font-weight:500}

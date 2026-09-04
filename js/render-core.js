@@ -34,31 +34,38 @@ function actualizarStepperSemana() {
 }
 
 // ── Promedio del banner por MCI ───────────────────────────────────────────
-// Devuelve 0..100 o null (progreso hacia la meta; ≥100 = meta alcanzada).
-// 1) Si algún elemento con rol 'banner' tiene datos, usa ese (p.ej. el % global
-//    de conservación): valor / su meta.
+// Devuelve { avg, raw, uni }. `avg` es 0..100 o null (progreso hacia la meta;
+// ≥100 = meta alcanzada) y define SOLO el color del semáforo. `raw` es el
+// valor capturado tal cual (sin transformar) — lo que se muestra en el número
+// grande del banner cuando el elemento fuente ya es un porcentaje (ej. el %
+// global de conservación): se alimenta directamente desde Administración y
+// cada captura REEMPLAZA a la anterior (no se acumula ni promedia).
+// 1) Si algún elemento con rol 'banner' tiene datos, usa ese.
 // 2) Si no, según el tipo de gráfica del MCI:
 //    - 'agrupada' (porcentajes): PROMEDIO del progreso de cada barra
 //      (valor/meta·100). No se pueden sumar porcentajes.
 //    - 'apilada' (conteos): SUMA de las barras / metaLinea del MCI.
-// Sin datos → null.
+// Sin datos → { avg:null, raw:null, uni:null }.
 function bannerAvgMCI(n, ws) {
   const clamp = v => Math.min(100, Math.max(0, Math.round(v)));
   const banner = (ws || []).find(e => e.rol === 'banner' && wigTieneDatos(e.id));
   if (banner) {
-    return clamp(getWigVal(sem, banner.id) / (banner.meta || 100) * 100);
+    const raw = getWigVal(sem, banner.id);
+    const avg = clamp(raw / (banner.meta || 100) * 100);
+    const esPct = (banner.uni || '').trim() === '%';
+    return esPct ? { avg, raw, uni: banner.uni } : { avg, raw: null, uni: null };
   }
   const bars = (ws || []).filter(e => e.rol !== 'banner' && wigTieneDatos(e.id));
-  if (!bars.length) return null;
+  if (!bars.length) return { avg: null, raw: null, uni: null };
   const tipo = ST.mciCfg?.[n]?.tipo;
   if (tipo === 'apilada') {
     const sum = bars.reduce((a, b) => a + getWigVal(sem, b.id), 0);
     const metaLinea = ST.mciCfg?.[n]?.metaLinea || 100;
-    return clamp(sum / metaLinea * 100);
+    return { avg: clamp(sum / metaLinea * 100), raw: null, uni: null };
   }
   // 'agrupada' (o default): promedio del progreso de cada barra hacia su meta.
   const prog = bars.map(b => getWigVal(sem, b.id) / (b.meta || 100) * 100);
-  return clamp(prog.reduce((a, b) => a + b, 0) / prog.length);
+  return { avg: clamp(prog.reduce((a, b) => a + b, 0) / prog.length), raw: null, uni: null };
 }
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
@@ -117,6 +124,28 @@ function predMesVal(predId, mes) {
   return hasta < 1 ? undefined : getPredVal(hasta, predId);
 }
 
+// ── Captura semanal por gerencia (dashboards tipo 'renovacion') ────────────
+// Mismo criterio que getWigVal/getPredVal: hereda hacia atrás el último valor
+// capturado — nunca se acumula, cada captura semanal SUSTITUYE a la anterior.
+// `field` es 'base' o 'pct'. Sin captura previa → undefined (a diferencia de
+// los WIGs, una gerencia nueva no tiene "inicio" de respaldo).
+function getRenovVal(n, gerId, field) {
+  for (let i = n; i >= 1; i--) {
+    const s = ST.semanas[i];
+    const v = s && s.renov && s.renov[gerId] && s.renov[gerId][field];
+    if (v !== undefined) return v;
+  }
+  return undefined;
+}
+
+// Valor de una gerencia "a fecha" de un mes dado (0-11), acotado por la
+// semana `sem` vigente (mismo criterio que predMesVal).
+function renovGerVal(gerId, mes, field) {
+  const lastWk = ULTIMA_SEM_MES[mes];
+  const hasta = lastWk ? Math.min(lastWk, sem) : 0;
+  return hasta < 1 ? undefined : getRenovVal(hasta, gerId, field);
+}
+
 // ── Score de UN MCI contributivo ──────────────────────────────────────────
 // Promedio de los % de sus medidas (cada una: valor actual manual vs meta).
 // Ignora medidas sin valor; null si ninguna tiene.
@@ -137,10 +166,7 @@ function contribScoreAcum(c) {
 // los meses maduros. Normal: promedio de sus medidas (contribScoreAcum).
 function contribScore(c) {
   if (c && c.tipo === 'renovacion' && c.dash) {
-    const mad = (c.dash.meses || []).filter(x => x.maduro && x.base > 0);
-    const den = mad.reduce((a, x) => a + x.base, 0);
-    if (!den) return null;
-    return Math.round(mad.reduce((a, x) => a + x.pct1er * x.base, 0) / den * 10) / 10;
+    return renovView(c.dash, 'todos').pct;
   }
   if (c && c.tipo === 'clavesagente' && c.claves) {
     const acum = (c.claves.meses || []).reduce((a, m) => a + (m.total || 0), 0);

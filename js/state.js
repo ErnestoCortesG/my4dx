@@ -64,13 +64,19 @@ function getSem(n) {
   return ST.semanas[n];
 }
 
-// ¿El WIG tiene algún valor acumulado capturado en alguna semana?
-// (El avance semanal se deriva del acumulado, ya no se captura por separado.)
+// ¿El WIG tiene algún valor acumulado capturado hasta la semana n (por defecto,
+// la semana en vista)? Debe mirar solo hacia atrás, igual que getWigVal: si solo
+// mirara "en cualquier semana" (incluidas futuras), una captura posterior haría
+// creer que YA había datos en semanas previas sin captura, mostrando 0/inicio
+// como si fuera una lectura real en vez de "sin datos".
 // Sin datos, el elemento se excluye de promedios y semáforos.
-function wigTieneDatos(wigId) {
-  return Object.values(ST.semanas || {}).some(s =>
-    s.wigs && s.wigs[wigId] !== undefined
-  );
+function wigTieneDatos(wigId, n) {
+  n = n === undefined ? sem : n;
+  for (let i = n; i >= 1; i--) {
+    const s = ST.semanas[i];
+    if (s && s.wigs && s.wigs[wigId] !== undefined) return true;
+  }
+  return false;
 }
 
 // Borra los registros de un WIG en la semana n (el elemento sigue existiendo).
