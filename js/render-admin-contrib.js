@@ -57,6 +57,21 @@ function adminContribHTML() {
         <button type="button" class="waeadd" style="font-size:10px;padding:3px 8px;margin-top:6px"
           onclick="addPredToContrib('${m.id}','${c.id}')">+ Agregar medida</button>`;
 
+      const mm = c.metaMensual || {};
+      const metaMensualHTML = `<div class="ccontrib-mm">
+        <label class="mci-check-lbl">
+          <input type="checkbox" ${mm.activo ? 'checked' : ''}
+            onchange="toggleContribMetaMensual('${m.id}','${c.id}',this.checked)">
+          <span>Meta mensual (semáforo)</span>
+        </label>
+        ${mm.activo ? `<div class="cv-meta-row" style="margin-top:6px">
+          <input type="number" class="predinp cv-num" min="0" placeholder="Meta" value="${mm.valor ?? ''}"
+            onchange="saveContribMetaMensual('${m.id}','${c.id}','valor',this.value)">
+          <input type="text" class="predinp predinp-uni" autocomplete="off" placeholder="Unidad"
+            value="${esc(mm.unidad||'')}" onchange="saveContribMetaMensual('${m.id}','${c.id}','unidad',this.value)">
+        </div>` : ''}
+      </div>`;
+
       return `<div class="ccontrib-blk">
         <div class="ccontrib-hdr">
           <input type="text" class="waeinp" autocomplete="off"
@@ -68,6 +83,7 @@ function adminContribHTML() {
           <label class="waelbl">Pertenece a MCI general</label>
           <div class="mci-checks-wrap">${mciChecks}</div>
         </div>
+        ${metaMensualHTML}
         ${body}
       </div>`;
     }).join('');
@@ -147,6 +163,34 @@ function toggleContribMci(mid, cid, n, checked) {
   if (!c.mciAlineados) c.mciAlineados = [];
   if (checked) { if (!c.mciAlineados.includes(n)) c.mciAlineados.push(n); }
   else { c.mciAlineados = c.mciAlineados.filter(x => x !== n); }
+  renderTablero();
+  guardarConfig();
+}
+
+// Activa/desactiva la meta mensual (semáforo) de un MCI contributivo. Aplica
+// de forma genérica a cualquier tipo de contributivo; hoy solo el dashboard
+// de "claves de vendedores" (Victoria) la usa para colorear su tarjeta del
+// mes en curso — ver clavesVendDashHTML en render-perfil.js.
+function toggleContribMetaMensual(mid, cid, checked) {
+  const m = ST.miembros.find(x => x.id === mid);
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  if (!c) return;
+  if (!c.metaMensual) c.metaMensual = { activo: false, valor: 0, unidad: '' };
+  c.metaMensual.activo = !!checked;
+  renderAdmin();
+  renderPerfil();
+  renderTablero();
+  guardarConfig();
+}
+
+function saveContribMetaMensual(mid, cid, field, val) {
+  const m = ST.miembros.find(x => x.id === mid);
+  const c = m && (m.contributivos || []).find(x => x.id === cid);
+  if (!c) return;
+  if (!c.metaMensual) c.metaMensual = { activo: true, valor: 0, unidad: '' };
+  if (field === 'valor') c.metaMensual.valor = Math.max(0, parseFloat(val) || 0);
+  else if (field === 'unidad') c.metaMensual.unidad = (val || '').trim();
+  renderPerfil();
   renderTablero();
   guardarConfig();
 }

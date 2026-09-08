@@ -368,6 +368,7 @@ table.ptbl tr:hover td{background:#fafaf8}
 .ccontrib-hdr .waedel{position:absolute;top:50%;right:8px;transform:translateY(-50%)}
 .ccontrib-hdr .waedel:active{transform:translateY(-50%) scale(0.9)}
 .ccontrib-mci{display:flex;flex-direction:column;gap:4px;padding:0 8px 6px}
+.ccontrib-mm{padding:0 8px 8px;border-top:1px dashed #eceae5;margin-top:2px;padding-top:6px}
 .ccontrib-blk .mcont-preds{padding:0 8px 8px}
 .ccontrib-blk .waeadd{margin:0 8px 8px}
 .predrow{display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:1px solid var(--surf3)}

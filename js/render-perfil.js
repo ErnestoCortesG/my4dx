@@ -475,10 +475,16 @@ function clavesVendDashHTML(c) {
     });
   }
   const mesNom = (mesIdx !== undefined && MESES_LARGO[mesIdx]) ? MESES_LARGO[mesIdx] : 'Mes en curso';
-  const monthCard = `<div class="cv-month-card">
+  // Semáforo por meta mensual (configurada en Administración, genérico a
+  // cualquier contributivo vía c.metaMensual): verde al llegar/superar la
+  // meta, rojo por debajo de la mitad, amarillo en medio.
+  const mm = c.metaMensual;
+  const mmOn = !!(mm && mm.activo && mm.valor > 0);
+  const mmColor = mmOn ? (monthSum >= mm.valor ? 'var(--green-dk)' : monthSum >= mm.valor * 0.5 ? 'var(--yellow-dk)' : 'var(--red-dk)') : null;
+  const monthCard = `<div class="cv-month-card"${mmColor ? ` style="border-color:${mmColor};border-width:2px"` : ''}>
       <div class="cv-mc-title">${esc(mesNom)}</div>
-      <div class="cv-mc-num">${monthSum}</div>
-      <div class="cv-mc-unit">claves</div>
+      <div class="cv-mc-num"${mmColor ? ` style="color:${mmColor}"` : ''}>${monthSum}</div>
+      <div class="cv-mc-unit">${mmOn && mm.unidad ? esc(mm.unidad) : 'claves'}${mmOn ? ` · meta ${mm.valor}` : ''}</div>
       <div class="cv-mc-sub">${monthWeeks} ${monthWeeks === 1 ? 'semana' : 'semanas'} con datos</div>
     </div>`;
   return `<div class="clavesvend-dash">
@@ -545,7 +551,11 @@ function clavesVendStackedSVG(c, availW) {
   // trazos conservan su tamaño en px a cualquier ancho). Medimos contra availW. ──
   const AW = Math.max(availW || 360, 200);
   const mobile = AW < 430;                    // en móvil quitamos la columna de leyenda
-  const PL = 28, LEG = mobile ? 0 : 122, TOP = 16, BOT = 24;
+  // Leyenda de estados en paquetes de 10 (columnas) para que no quede una lista
+  // larga de una sola columna a lado de la gráfica cuando hay muchos estados.
+  const LEG_POR_COL = 10, LEG_COL_W = 122;
+  const legCols = Math.max(1, Math.ceil(estados.length / LEG_POR_COL));
+  const PL = 28, LEG = mobile ? 0 : legCols * LEG_COL_W, TOP = 16, BOT = 24;
   const plotW = Math.max(AW - PL - LEG, 120);
   const nW = Math.max(weeks.length, 1);
   // El slot llena el ancho disponible, acotado para que las barras no queden ni
@@ -555,11 +565,11 @@ function clavesVendStackedSVG(c, availW) {
   const bw = Math.max(16, Math.min(46, slot * 0.52));
   const plotRight = PL + nW * slot;             // borde derecho del área de barras
   const W = plotRight + LEG;                    // ancho total del contenido
-  // Alto proporcional a los datos, acotado; se extiende si la leyenda (una fila
-  // por estado) necesita más espacio, para no recortarla.
+  // Alto proporcional a los datos, acotado; se extiende si la leyenda (una columna
+  // de hasta 10 estados) necesita más espacio, para no recortarla.
   const plotH = Math.max(150, Math.min(240, 150 + YMAX * 4));
   const baseY = TOP + plotH;
-  const legHeight = LEG ? (40 + estados.length * 12) : 0;
+  const legHeight = LEG ? (40 + Math.min(estados.length, LEG_POR_COL) * 12) : 0;
   const H = Math.max(TOP + plotH + BOT, legHeight);
   const yOf = v => baseY - (v / YMAX) * plotH;
   let s = '';
@@ -588,13 +598,20 @@ function clavesVendStackedSVG(c, availW) {
     s += `<text x="${cx.toFixed(1)}" y="${(baseY+14).toFixed(1)}" font-size="9.5" font-weight="${cur?'800':'400'}" fill="${cur?'#a76a00':'var(--text-3)'}" text-anchor="middle">Sem ${n}</text>`;
   });
   s += `<line x1="${PL}" y1="${baseY}" x2="${plotRight}" y2="${baseY}" stroke="var(--text-3)" stroke-opacity=".4"/>`;
-  // Leyenda "Total general" + estados (columna derecha; en móvil va como chips HTML)
+  // Leyenda "Total general" + estados, en columnas de hasta 10 estados cada una
+  // (en móvil va como chips HTML en vez de columnas SVG).
   if (LEG) {
-    const lx = plotRight + 8; let ly = TOP + 2;
-    s += `<line x1="${lx}" y1="${(ly-3).toFixed(1)}" x2="${lx+11}" y2="${(ly-3).toFixed(1)}" stroke="#f28e2b" stroke-width="2"/><circle cx="${lx+5.5}" cy="${(ly-3).toFixed(1)}" r="2.4" fill="#f28e2b"/><text x="${lx+15}" y="${ly.toFixed(1)}" font-size="8" font-weight="700" fill="var(--ink)">Total general</text>`;
+    const lx0 = plotRight + 8; let ly = TOP + 2;
+    s += `<line x1="${lx0}" y1="${(ly-3).toFixed(1)}" x2="${lx0+11}" y2="${(ly-3).toFixed(1)}" stroke="#f28e2b" stroke-width="2"/><circle cx="${lx0+5.5}" cy="${(ly-3).toFixed(1)}" r="2.4" fill="#f28e2b"/><text x="${lx0+15}" y="${ly.toFixed(1)}" font-size="8" font-weight="700" fill="var(--ink)">Total general</text>`;
     ly += 13;
-    s += `<text x="${lx}" y="${ly.toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--ink)">Estado/Provincia</text>`;
-    estados.slice().reverse().forEach((e, i) => { const yy = ly + 11 + i * 12; s += `<rect x="${lx}" y="${(yy-8).toFixed(1)}" width="9" height="9" rx="2" fill="${colOf(e)}"/><text x="${lx+13}" y="${yy.toFixed(1)}" font-size="8" fill="var(--ink)">${esc(e)}</text>`; });
+    const legOrder = estados.slice().reverse();
+    for (let ci = 0; ci < legCols; ci++) {
+      const lx = lx0 + ci * LEG_COL_W;
+      const colItems = legOrder.slice(ci * LEG_POR_COL, ci * LEG_POR_COL + LEG_POR_COL);
+      const rango = legCols > 1 ? ` ${ci*LEG_POR_COL+1}-${ci*LEG_POR_COL+colItems.length}` : '';
+      s += `<text x="${lx}" y="${ly.toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--ink)">Estado/Provincia${rango}</text>`;
+      colItems.forEach((e, i) => { const yy = ly + 11 + i * 12; s += `<rect x="${lx}" y="${(yy-8).toFixed(1)}" width="9" height="9" rx="2" fill="${colOf(e)}"/><text x="${lx+13}" y="${yy.toFixed(1)}" font-size="8" fill="var(--ink)">${esc(e)}</text>`; });
+    }
   }
   // Render 1:1 (viewBox = W×H reales): sin estirar, la tipografía y los trazos
   // conservan sus px. Si W ≤ availW se centra; si W > availW, .ptbl-wrap desplaza.
