@@ -74,8 +74,10 @@ function renderTablero() {
     return `<div class="mci-banner" style="--c:${st.c};--ct:${st.ct};--cb:${st.cb}">
       <div class="mci-banner-dot"></div>
       <div class="mci-banner-mid">
-        <div class="mci-num">${num}</div>
-        <div class="mci-banner-tit">${esc(tit)}</div>
+        <div class="mci-banner-toprow">
+          <div class="mci-num">${num}</div>
+          <div class="mci-banner-tit">${esc(tit)}</div>
+        </div>
         <span class="mci-banner-pill">${st.txt}</span>
       </div>
       <div class="mci-banner-big">${avg === null ? '—' : num2}<span>${avg === null ? '' : '%'}</span></div>
