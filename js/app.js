@@ -5,6 +5,11 @@ function goPage(p, el) {
   document.querySelectorAll('.nav-tab').forEach(x => x.classList.remove('active'));
   document.getElementById('page-' + p).classList.add('active');
   if (el) el.classList.add('active');
+  // Entrar al Tablero MCI por la pestaña de navegación (o "← Tablero general"
+  // desde un perfil) siempre debe ser la vista general: si no se limpia
+  // mActivo, queda pegado el banner del integrante que se estaba viendo en
+  // el perfil hasta que el usuario hace click en "Todos" en el menú lateral.
+  if (p === 'tablero') mActivo = 'todos';
   pagina = p;
   renderAll();
 }
