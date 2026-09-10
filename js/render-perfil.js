@@ -448,6 +448,24 @@ function clavesStackedSVG(K) {
 // Datos alimentados manualmente por semana desde Administración. El modelo lo
 // provee BACK: c.clavesvend = { metaTotal, estados:[], semanas:{ [semN]:{ [estado]:n } } }.
 // Usa los helpers globales clavesVendAcum(c, sem) y clavesVendSemana(c, n).
+
+// Etiquetas de la categoría que agrupa las claves — Victoria usa por default
+// "Estado/Provincia" (masculino: "estado"); otros contributivos del mismo
+// tipo 'clavesvend' (ej. Leslie, "Aseguradora") definen las suyas vía
+// K.categoriaLabel/K.categoriaGenero sin tocar el código. "claves" (lo que se
+// cuenta) sí queda fijo — ambos contributivos capturan claves.
+function clavesVendCatLabels(c) {
+  const K = c.clavesvend || {};
+  const full = K.categoriaLabel || 'Estado/Provincia';
+  const corta = full.split('/')[0].toLowerCase();
+  const f = K.categoriaGenero === 'f';
+  return {
+    full, corta, completo: full.toLowerCase(),
+    un: f ? 'una' : 'un', ese: f ? 'esa' : 'ese', unoa: f ? 'una' : 'uno',
+    nuevo: f ? 'Nueva' : 'Nuevo', quitado: f ? 'quitada' : 'quitado',
+  };
+}
+
 function clavesVendDashHTML(c) {
   const K = c.clavesvend || {};
   const acum   = clavesVendAcum(c, sem);
@@ -494,7 +512,7 @@ function clavesVendDashHTML(c) {
       <div class="cv-kpi"><div class="cv-kv">${actual}</div><div class="cv-kl">Claves de la semana actual · Sem ${sem}${rango ? ` (${esc(rango)})` : ''}</div></div>
     </div>
     <div class="cv-chart-row">
-      <div class="renov-card cv-chart-col"><div class="renov-ct">Claves de vendedores por semana · por Estado/Provincia</div><div class="ptbl-wrap" id="cv-chart-host-${c.id}"></div></div>
+      <div class="renov-card cv-chart-col"><div class="renov-ct">Claves de vendedores por semana · por ${esc(clavesVendCatLabels(c).full)}</div><div class="ptbl-wrap" id="cv-chart-host-${c.id}"></div></div>
       ${monthCard}
     </div>
   </div>`;
@@ -525,6 +543,7 @@ function renderClavesVendChart(cid) {
 
 function clavesVendStackedSVG(c, availW) {
   const K = c.clavesvend || {};
+  const catLabels = clavesVendCatLabels(c);
   const semanas = K.semanas || {}, estados = K.estados || [], metaTot = K.metaTotal || 0;
   const colOf = e => _clavesColor(e, estados.indexOf(e));
   // Solo las semanas del MES EN CURSO (el mes de la semana seleccionada) que
@@ -609,7 +628,7 @@ function clavesVendStackedSVG(c, availW) {
       const lx = lx0 + ci * LEG_COL_W;
       const colItems = legOrder.slice(ci * LEG_POR_COL, ci * LEG_POR_COL + LEG_POR_COL);
       const rango = legCols > 1 ? ` ${ci*LEG_POR_COL+1}-${ci*LEG_POR_COL+colItems.length}` : '';
-      s += `<text x="${lx}" y="${ly.toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--ink)">Estado/Provincia${rango}</text>`;
+      s += `<text x="${lx}" y="${ly.toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--ink)">${esc(catLabels.full)}${rango}</text>`;
       colItems.forEach((e, i) => { const yy = ly + 11 + i * 12; s += `<rect x="${lx}" y="${(yy-8).toFixed(1)}" width="9" height="9" rx="2" fill="${colOf(e)}"/><text x="${lx+13}" y="${yy.toFixed(1)}" font-size="8" fill="var(--ink)">${esc(e)}</text>`; });
     }
   }

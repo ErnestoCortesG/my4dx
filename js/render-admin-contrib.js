@@ -337,19 +337,20 @@ function addPredToContrib(mid, cid) {
 // el navegador global (`sem`): la captura aplica a esa semana.
 function clavesVendAdminHTML(c) {
   const K = c.clavesvend || (c.clavesvend = { metaTotal: 0, estados: [], semanas: {} });
+  const cat = clavesVendCatLabels(c);
   const estados = K.estados || [], wk = K.semanas?.[sem] || {};
   const rango = SEMANAS[sem] || '';
   const rows = estados.length
     ? estados.map(e => `<div class="cv-row">
         <input type="text" class="predinp cv-est" autocomplete="off" value="${esc(e)}"
-          title="Renombrar estado/provincia"
+          title="Renombrar ${cat.corta}"
           onchange="renameClavesVendEstado('${c.id}',${esc(JSON.stringify(e))},this.value)">
         <input type="number" class="predinp cv-num" min="0" value="${Number(wk[e]) || 0}"
           title="Claves de la semana" onchange="setClavesVendCount('${c.id}',${sem},${esc(JSON.stringify(e))},this.value)">
-        <button type="button" class="preddel" title="Quitar estado"
+        <button type="button" class="preddel" title="Quitar ${cat.corta}"
           onclick="delClavesVendEstado('${c.id}',${esc(JSON.stringify(e))})">×</button>
       </div>`).join('')
-    : '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin estados — agrega uno abajo.</div>';
+    : `<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin ${cat.corta}s — agrega ${cat.unoa} abajo.</div>`;
   return `<div class="cv-admin">
     <div class="cv-meta-row">
       <label class="waelbl">Meta total (año)</label>
@@ -359,7 +360,7 @@ function clavesVendAdminHTML(c) {
     <div class="cv-wk-hdr">Captura de <b>Sem ${sem}</b>${rango ? ` · ${esc(rango)}` : ''} <span>(usa el navegador de semanas)</span></div>
     <div class="cv-rows">
       <div class="cv-row cv-row-hdr">
-        <span class="waelbl" style="flex:1">Estado/Provincia</span>
+        <span class="waelbl" style="flex:1">${esc(cat.full)}</span>
         <span class="waelbl" style="width:60px">Claves</span>
         <span style="width:22px"></span>
       </div>
@@ -367,10 +368,10 @@ function clavesVendAdminHTML(c) {
     </div>
     <div class="cv-add">
       <input type="text" class="predinp cv-add-inp" id="cv-add-${c.id}" autocomplete="off"
-        placeholder="Nuevo estado/provincia"
+        placeholder="${cat.nuevo} ${cat.completo}"
         onkeydown="if(event.key==='Enter'){event.preventDefault();addClavesVendEstado('${c.id}',this.value);this.value='';}">
       <button type="button" class="waeadd" style="font-size:10px;padding:3px 8px"
-        onclick="var i=document.getElementById('cv-add-${c.id}');addClavesVendEstado('${c.id}',i.value);i.value='';">+ Agregar estado</button>
+        onclick="var i=document.getElementById('cv-add-${c.id}');addClavesVendEstado('${c.id}',i.value);i.value='';">+ Agregar ${cat.corta}</button>
     </div>
   </div>`;
 }
@@ -404,8 +405,9 @@ function setClavesVendCount(cid, semN, estado, val) {
 
 function addClavesVendEstado(cid, estado) {
   const c = _findClavesVend(cid); if (!c) return;
+  const cat = clavesVendCatLabels(c);
   const nombre = (estado || '').trim();
-  if (!nombre) { toast('Escribe un estado', 'warn'); return; }
+  if (!nombre) { toast(`Escribe ${cat.un} ${cat.corta}`, 'warn'); return; }
   const K = c.clavesvend;
   if (!K.estados.includes(nombre)) K.estados.push(nombre);
   renderAdmin();
@@ -415,8 +417,9 @@ function addClavesVendEstado(cid, estado) {
 
 async function delClavesVendEstado(cid, estado) {
   const c = _findClavesVend(cid); if (!c) return;
+  const cat = clavesVendCatLabels(c);
   const ok = await confirmar({
-    titulo: 'Quitar estado',
+    titulo: `Quitar ${cat.corta}`,
     mensaje: `¿Quitar "${estado}" y sus claves capturadas en todas las semanas?`,
     ok: 'Quitar', peligro: true,
   });
@@ -427,16 +430,17 @@ async function delClavesVendEstado(cid, estado) {
   renderAdmin();
   renderPerfil();
   guardarConfig();
-  toast('Estado quitado', 'ok');
+  toast(`${cat.corta[0].toUpperCase()}${cat.corta.slice(1)} ${cat.quitado}`, 'ok');
 }
 
 function renameClavesVendEstado(cid, oldName, newName) {
   const c = _findClavesVend(cid); if (!c) return;
+  const cat = clavesVendCatLabels(c);
   const nuevo = (newName || '').trim();
   const K = c.clavesvend;
   if (!nuevo) { toast('El nombre no puede quedar vacío', 'warn'); renderAdmin(); return; }
   if (nuevo === oldName) return;
-  if (K.estados.includes(nuevo)) { toast('Ya existe ese estado', 'warn'); renderAdmin(); return; }
+  if (K.estados.includes(nuevo)) { toast(`Ya existe ${cat.ese} ${cat.corta}`, 'warn'); renderAdmin(); return; }
   const i = K.estados.indexOf(oldName);
   if (i < 0) return;
   K.estados[i] = nuevo;
