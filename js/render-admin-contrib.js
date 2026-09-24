@@ -4,7 +4,7 @@
 
 function adminContribHTML() {
   const mciNums = [...new Set(ST.wigs.map(w => w.mci))].sort((a,b) => a-b);
-  return ST.miembros.map(m => {
+  return '<div class="mcont-list">' + ST.miembros.map(m => {
     const ini = m.nombre.split(' ').map(x => x[0]).join('').slice(0,2).toUpperCase();
 
     // Un sub-bloque por MCI contributivo: MCI general(es) al que pertenece +
@@ -45,7 +45,9 @@ function adminContribHTML() {
         ? clavesVendAdminHTML(c)
         : (c.tipo === 'renovacion')
           ? renovAdminHTML(c)
-          : `<div class="mcont-preds">
+          : (c.tipo === 'nps')
+            ? npsAdminHTML(c)
+            : `<div class="mcont-preds">
           <div class="predrow predrow-hdr">
             <span class="waelbl" style="flex:1">Medida</span>
             <span class="waelbl" style="width:60px">Meta</span>
@@ -88,15 +90,15 @@ function adminContribHTML() {
       </div>`;
     }).join('');
 
-    return `<div class="mcont-blk">
+    return `<div class="mcont-blk" style="--mc:${m.color}">
       <div class="mcont-hdr">
-        <div class="mav" style="background:${m.color};width:30px;height:30px;font-size:11px">${esc(ini)}</div>
-        <div style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0">
-          <input type="text" class="waeinp" autocomplete="off" value="${esc(m.nombre)}"
-            placeholder="Nombre completo" style="font-size:12px;font-weight:700;padding:3px 6px"
+        <div class="mav" style="background:${m.color}">${esc(ini)}</div>
+        <div class="mcont-id">
+          <input type="text" class="waeinp mcont-name" autocomplete="off" value="${esc(m.nombre)}"
+            placeholder="Nombre completo"
             onchange="saveMiembroNombre('${m.id}',this.value)">
-          <input type="text" class="waeinp" autocomplete="off" value="${esc(m.cargo || '')}"
-            placeholder="Cargo / Área" style="font-size:10px;padding:2px 6px"
+          <input type="text" class="waeinp mcont-cargo" autocomplete="off" value="${esc(m.cargo || '')}"
+            placeholder="Cargo / Área"
             onchange="saveMiembroCargo('${m.id}',this.value)">
         </div>
         <button type="button" class="mcont-del" onclick="delMiembro('${m.id}')" title="Eliminar este integrante y sus medidas">×</button>
@@ -108,7 +110,7 @@ function adminContribHTML() {
       </div>
       ${contribBlks || '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Sin MCI contributivos — usa "+ Nuevo MCI contributivo".</div>'}
     </div>`;
-  }).join('');
+  }).join('') + '</div>';
 }
 
 function _mciOpts() {
@@ -680,4 +682,138 @@ function renovAdminHTML(c) {
       ${capRows}
     </div>
   </div>`;
+}
+
+// ── Captura semanal · NPS a agentes (tipo 'nps') ───────────────────────────
+// c.nps = { metaNps, metaPart, semanas:{ [semN]:{ base, p, pa, d } } }. Se
+// captura por semana (la del navegador global `sem`); son conteos de ESA
+// semana, no acumulados. El NPS y la participación se calculan con npsCalc().
+function _findNps(cid) {
+  const c = _findContrib(cid); if (!c) return null;
+  if (!c.nps) c.nps = { metaNps: 70, metaPart: null, semanas: {} };
+  if (!c.nps.semanas) c.nps.semanas = {};
+  return c;
+}
+
+function npsAdminHTML(c) {
+  const N = c.nps || (c.nps = { metaNps: 70, metaPart: null, semanas: {} });
+  if (!N.semanas) N.semanas = {};
+  const rango = SEMANAS[sem] || '';
+  const wk = N.semanas[sem];
+  // Semana vacía → sugiere la base de la última semana anterior capturada.
+  let baseSug = '';
+  if (!wk) {
+    const prev = Object.keys(N.semanas).map(Number).filter(n => n < sem && N.semanas[n] && N.semanas[n].base)
+      .sort((a, b) => b - a)[0];
+    if (prev) baseSug = N.semanas[prev].base;
+  }
+  const val = k => wk && wk[k] != null ? wk[k] : '';
+  const calc = npsCalc(wk || {});
+  const fld = (k, lbl, v) => `<label><span class="waelbl">${lbl}</span>
+      <input type="number" class="predinp" id="nps-${k}-${c.id}" min="0" step="1" value="${v}"
+        oninput="npsAdminPreview('${c.id}')"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();saveNpsSemana('${c.id}');}"></label>`;
+
+  const semsN = Object.keys(N.semanas).map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+  const filas = semsN.map(n => {
+    const r = npsCalc(N.semanas[n]);
+    return `<tr class="${n === sem ? 'cur' : ''}">
+      <td><b>${n}</b></td><td class="nps-fecha">${esc(SEMANAS[n] || '')}</td>
+      <td>${r.base}</td><td>${r.p}</td><td>${r.pa}</td><td>${r.d}</td><td>${r.resp}</td>
+      <td><b>${r.nps == null ? '—' : (r.nps > 0 ? '+' : '') + r.nps}</b></td>
+      <td>${r.part == null ? '—' : r.part + '%'}</td>
+      <td><button type="button" class="preddel" title="Borrar la captura de la Sem ${n}" onclick="delNpsSemana('${c.id}',${n})">×</button></td>
+    </tr>`;
+  }).join('');
+  const tabla = semsN.length
+    ? `<div class="ptbl-wrap"><table class="nps-tbl">
+        <thead><tr><th>Sem</th><th>Fecha</th><th>Base</th><th>P</th><th>Pa</th><th>D</th><th>Resp.</th><th>NPS</th><th>Part.</th><th></th></tr></thead>
+        <tbody>${filas}</tbody></table></div>`
+    : '<div style="font-size:11px;color:var(--text-3);padding:6px 2px">Aún no hay semanas capturadas.</div>';
+
+  return `<div class="nps-admin">
+    <div class="cv-meta-row">
+      <label class="waelbl">Meta NPS</label>
+      <input type="number" class="predinp cv-num" min="0" max="100" value="${N.metaNps ?? 70}"
+        onchange="saveNpsMeta('${c.id}','metaNps',this.value)">
+      <label class="waelbl" style="margin-left:8px">Meta participación %</label>
+      <input type="number" class="predinp cv-num" min="0" max="100" value="${N.metaPart ?? ''}" placeholder="Sin meta"
+        onchange="saveNpsMeta('${c.id}','metaPart',this.value)">
+    </div>
+    <div class="cv-wk-hdr">Captura de <b>Sem ${sem}</b>${rango ? ` · ${esc(rango)}` : ''} <span>(usa el navegador de semanas)</span></div>
+    <div class="nps-cap">
+      ${fld('base', 'Agentes base', wk ? val('base') : baseSug)}
+      ${fld('p', 'Promotores (9–10)', val('p'))}
+      ${fld('pa', 'Pasivos (7–8)', val('pa'))}
+      ${fld('d', 'Detractores (0–6)', val('d'))}
+    </div>
+    <div class="nps-cap-foot">
+      <span class="nps-calc">NPS <b id="nps-calc-nps-${c.id}">${calc.nps == null ? '—' : (calc.nps > 0 ? '+' : '') + calc.nps}</b></span>
+      <span class="nps-calc">Participación <b id="nps-calc-part-${c.id}">${calc.part == null ? '—' : calc.part + '%'}</b></span>
+      <button type="button" class="waeadd" style="font-size:10px;padding:3px 10px;margin-left:auto"
+        onclick="saveNpsSemana('${c.id}')">Guardar Sem ${sem}</button>
+    </div>
+    <div class="waelbl" style="margin:4px 0 4px">Semanas capturadas</div>
+    ${tabla}
+  </div>`;
+}
+
+// Lee los 4 campos de captura del contributivo (strings crudos).
+function _npsAdminInputs(cid) {
+  const g = k => { const el = document.getElementById(`nps-${k}-${cid}`); return el ? el.value.trim() : ''; };
+  return { base: g('base'), p: g('p'), pa: g('pa'), d: g('d') };
+}
+
+// Vista previa en vivo del NPS y la participación mientras se teclea.
+function npsAdminPreview(cid) {
+  const r = npsCalc(_npsAdminInputs(cid));
+  const eN = document.getElementById('nps-calc-nps-' + cid), eP = document.getElementById('nps-calc-part-' + cid);
+  if (eN) eN.textContent = r.nps == null ? '—' : (r.nps > 0 ? '+' : '') + r.nps;
+  if (eP) eP.textContent = r.part == null ? '—' : r.part + '%';
+}
+
+function saveNpsMeta(cid, field, val) {
+  const c = _findNps(cid); if (!c) return;
+  const v = String(val ?? '').trim(), num = parseFloat(v);
+  // Participación: vacío = sin meta (null). NPS: siempre numérica (vacío → 0).
+  c.nps[field] = field === 'metaPart' && (v === '' || isNaN(num))
+    ? null
+    : Math.max(0, Math.min(100, num || 0));
+  renderPerfil();
+  guardarConfig();
+}
+
+// Guarda la captura de la semana en vista. Todo vacío/0 → borra la semana.
+function saveNpsSemana(cid) {
+  const c = _findNps(cid); if (!c) return;
+  const raw = _npsAdminInputs(cid);
+  const int = v => Math.max(0, parseInt(v, 10) || 0);
+  const o = { base: int(raw.base), p: int(raw.p), pa: int(raw.pa), d: int(raw.d) };
+  const resp = o.p + o.pa + o.d;
+  if (!o.base && !resp) {
+    delete c.nps.semanas[sem];
+  } else {
+    if (resp && !o.base) { toast('Captura los agentes base de la semana', 'warn'); return; }
+    if (resp > o.base) { toast(`Las respuestas (${resp}) superan la base de agentes (${o.base})`, 'warn'); return; }
+    c.nps.semanas[sem] = o;
+  }
+  renderAdmin();
+  renderPerfil();
+  guardarConfig();
+  toast(`NPS Sem ${sem} guardado`, 'ok');
+}
+
+async function delNpsSemana(cid, n) {
+  const c = _findNps(cid); if (!c) return;
+  const ok = await confirmar({
+    titulo: 'Borrar captura NPS',
+    mensaje: `¿Borrar la captura de la Sem ${n}${SEMANAS[n] ? ` (${SEMANAS[n]})` : ''}?`,
+    ok: 'Borrar', peligro: true,
+  });
+  if (!ok) return;
+  delete c.nps.semanas[n];
+  renderAdmin();
+  renderPerfil();
+  guardarConfig();
+  toast('Captura borrada', 'ok');
 }

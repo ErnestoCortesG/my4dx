@@ -67,7 +67,9 @@ function renderPerfil() {
         ? clavesDashHTML(active)
         : (active.tipo === 'clavesvend' && active.clavesvend)
           ? clavesVendDashHTML(active)
-          : contribMedidasHTML(active, ro);
+          : (active.tipo === 'nps' && active.nps)
+            ? npsDashHTML(active)
+            : contribMedidasHTML(active, ro);
 
   document.getElementById('perfil-content').innerHTML = `
     <div class="perf-back-bar">
@@ -642,6 +644,232 @@ function clavesVendStackedSVG(c, availW) {
     return svg + `<div class="cv-leg-chips">${chips}</div>`;
   }
   return svg;
+}
+
+// ── Contributivo tipo DASHBOARD NPS (encuesta a agentes) ────────────────────
+// Modelo (BACK): c.nps = { metaNps, metaPart, semanas:{ [semN]:{ base, p, pa, d } } }.
+// Usa los helpers globales npsCalc/npsSemanas/npsMeses/npsTotal/npsEvolucion/
+// npsMesVista de render-core.js, siempre acotados a la semana en vista `sem`.
+// Dos tarjetas: (1) semanas del mes + participación + acumulado mensual, con
+// el total en el encabezado; (2) evolución semanal del NPS acumulado.
+
+// NPS con signo (+18 / −6); '—' si no hay dato.
+function _npsSgn(v) { return v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v); }
+// Semáforo vs meta: verde ≥100%, amarillo 50–99%, rojo <50% (negativo → rojo).
+function _npsTone(v, meta) { return v >= meta ? 'g' : v >= meta / 2 ? 'y' : 'r'; }
+const _NPS_FILL   = { g: 'var(--green)',         y: 'var(--yellow)',         r: 'var(--cta)' };
+const _NPS_TXT    = { g: 'var(--green-dk)',      y: 'var(--yellow-dk)',      r: 'var(--red-dk)' };
+const _NPS_ONNAVY = { g: 'var(--green-on-navy)', y: 'var(--yellow-on-navy)', r: 'var(--red-on-navy)' };
+// Estado del semáforo NPS en palabras (panel de total + pill de evolución).
+const _NPS_STATUS = { g: { ic: '▲', txt: 'Vamos ganando' }, y: { ic: '●', txt: 'Requiere atención' }, r: { ic: '▼', txt: 'Vamos perdiendo' } };
+function _npsMesCorto(mes) { const s = MESES_CORTOS[mes] || ''; return s.charAt(0).toUpperCase() + s.slice(1); }
+// Tira 100% apilada (promotores · pasivos · detractores) con flex-grow = conteo.
+function _npsMixHTML(w) {
+  return `<div class="nps-mix">${w.p ? `<span style="flex:${w.p};background:var(--nps-prom)"></span>` : ''}${w.pa ? `<span style="flex:${w.pa};background:var(--pasivo)"></span>` : ''}${w.d ? `<span style="flex:${w.d};background:var(--nps-det)"></span>` : ''}</div>`;
+}
+
+function npsDashHTML(c) {
+  const N = c.nps || {};
+  const metaNps = N.metaNps != null ? N.metaNps : 70;
+  // Participación sin meta por default (null); solo hay meta si es numérica.
+  const metaPart = N.metaPart != null && N.metaPart !== '' && !isNaN(N.metaPart) ? Number(N.metaPart) : null;
+  const cMcis = (c.mciAlineados || []).slice().sort((a,b)=>a-b);
+  const cBadges = cMcis.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:-6px">${cMcis.map(n => `<span class="perf-mci-badge">MCI ${n} · ${esc(ST.mciTitulos?.[n] || 'General')}</span>`).join('')}</div>` : '';
+
+  const tot   = npsTotal(c, sem);
+  const evo   = npsEvolucion(c, sem);
+  const vacio = !tot.resp;
+
+  // Encabezado: panel de estado del acumulado total, relleno con el color del
+  // semáforo vs meta (verde ganando · amarillo atención · rojo perdiendo).
+  const tTone = vacio ? null : _npsTone(tot.nps, metaNps);
+  const tPct  = vacio || !metaNps ? null : Math.max(0, Math.round(tot.nps / metaNps * 100));
+  const tSt   = vacio ? null : _NPS_STATUS[tTone];
+  const tGap  = vacio ? '' : tot.nps >= metaNps
+    ? (tot.nps > metaNps ? `meta superada por ${tot.nps - metaNps} pts` : 'meta cumplida')
+    : `faltan ${metaNps - tot.nps} pts`;
+  const toth = vacio
+    ? `<div class="nps-stat n" role="status">
+        <div class="nps-stat-lab">NPS acumulado total</div>
+        <div class="nps-stat-big">—</div>
+        <div class="nps-stat-st">Sin respuestas aún</div>
+      </div>`
+    : `<div class="nps-stat ${tTone}" role="status" aria-label="NPS acumulado total ${_npsSgn(tot.nps)}: ${tSt.txt}">
+        <div class="nps-stat-lab">NPS acumulado total</div>
+        <div class="nps-stat-big">${_npsSgn(tot.nps)}</div>
+        <div class="nps-stat-st"><span class="nps-stat-ic" aria-hidden="true">${tSt.ic}</span>${tSt.txt}</div>
+        <div class="nps-stat-meta">${tot.resp.toLocaleString('es-MX')} ${tot.resp === 1 ? 'respuesta' : 'respuestas'}${tPct !== null ? ` · ${tPct}% de la meta ${_npsSgn(metaNps)}` : ''} · ${tGap}</div>
+      </div>`;
+
+  let body1, body2, pill = '';
+  if (vacio) {
+    body1 = `<div class="nps-empty">Aún no hay encuestas capturadas. Captúralas en Administración.</div>`;
+    body2 = `<div class="nps-empty">La evolución aparece con la primera semana capturada.</div>`;
+  } else {
+    const mesVista = npsMesVista(c, sem);
+    const ws = npsSemanas(c, sem).filter(w => w.mes === mesVista);
+    const legMix = `<div class="nps-legend"><span><i style="background:var(--nps-prom)"></i>Promotores</span><span><i style="background:var(--pasivo)"></i>Pasivos</span><span><i style="background:var(--nps-det)"></i>Detractores</span></div>`;
+    const meses = npsMeses(c, sem);
+    const mRows = `<div class="nps-mrows">${meses.map(m => `<div class="nps-mrow" title="${esc(MESES_LARGO[m.mes] || '')}: ${m.semanas.length} ${m.semanas.length === 1 ? 'semana' : 'semanas'}">
+        <span class="nps-mn">${_npsMesCorto(m.mes)}</span>${_npsMixHTML(m)}
+        <span class="nps-mv" style="color:${_NPS_TXT[_npsTone(m.nps, metaNps)]}">${_npsSgn(m.nps)}</span>
+        <span class="nps-nn">${m.resp.toLocaleString('es-MX')} ${m.resp === 1 ? 'respuesta' : 'respuestas'}</span>
+      </div>`).join('')}</div>`;
+    body1 = `<div class="nps-grid3">
+      <div><p class="nps-sub">NPS por semana${MESES_LARGO[mesVista] ? ` · ${esc(MESES_LARGO[mesVista])}` : ''}</p>${npsWeekBarsSVG(ws, metaNps)}${legMix}</div>
+      <div><p class="nps-sub">% de encuestas recibidas${metaPart != null ? ` · meta ${metaPart}%` : ''}</p>${npsPartSVG(ws, metaPart)}</div>
+      <div><p class="nps-sub">NPS acumulado por mes</p>${mRows}</div>
+    </div>`;
+    body2 = `<div class="nps-evo-wrap">${npsEvoSVG(c, evo, metaNps)}</div>
+      <div class="nps-legend"><span><i style="background:var(--nps-prom)"></i>NPS acumulado</span><span><i class="nps-lg-dot" style="background:var(--pasivo)"></i>NPS de la semana</span><span><i class="nps-lg-meta"></i>Meta ${_npsSgn(metaNps)}</span></div>`;
+    const lastV = evo[evo.length - 1].acum, lt = _npsTone(lastV, metaNps);
+    pill = `<span class="nps-pill ${lt}"><span class="nps-pill-ic" aria-hidden="true">${_NPS_STATUS[lt].ic}</span>${_NPS_STATUS[lt].txt} · NPS hoy ${_npsSgn(lastV)} · ${lastV >= metaNps ? 'meta cumplida' : `faltan ${metaNps - lastV} pts`}</span>`;
+  }
+
+  return `<div class="nps-dash">
+    ${cBadges}
+    <div class="nps-card">
+      <div class="nps-card-h"><div><div class="nps-t">${esc(c.nombre || 'NPS')}</div><div class="nps-s">NPS = % promotores (9–10) − % detractores (0–6)</div></div>${toth}</div>
+      <div class="nps-card-b">${body1}</div>
+    </div>
+    <div class="nps-card">
+      <div class="nps-card-h"><div><div class="nps-t">Evolución del NPS acumulado</div><div class="nps-s">${esc(c.nombre || 'NPS')} · ${evo.length} ${evo.length === 1 ? 'semana' : 'semanas'}</div></div>${pill}</div>
+      <div class="nps-card-b">${body2}</div>
+    </div>
+  </div>`;
+}
+
+// Barras verticales 100% apiladas por semana del mes: promotores arriba,
+// pasivos en medio, detractores abajo. NPS con signo encima de cada barra.
+function npsWeekBarsSVG(ws, metaNps) {
+  const W = 380, H = 220, T = 30, B = 28, hh = H - T - B, bw = 44, n = ws.length;
+  // Separación acotada: con pocas semanas el grupo se centra (no se va a los bordes).
+  const gap = n > 1 ? Math.min(120, (W - 8 - bw * n) / (n - 1)) : 0;
+  let x0 = (W - (bw * n + gap * (n - 1))) / 2, g = '';
+  ws.forEach((w, wi) => {
+    let yc = T;
+    const cx = x0 + bw / 2;
+    g += `<g><title>Sem ${w.n}${SEMANAS[w.n] ? ` · ${SEMANAS[w.n]}` : ''} · ${w.p} promotores · ${w.pa} pasivos · ${w.d} detractores · NPS ${_npsSgn(w.nps)}</title>`;
+    [['p', 'var(--nps-prom)', 'var(--surface)'], ['pa', 'var(--pasivo)', 'var(--navy)'], ['d', 'var(--nps-det)', 'var(--surface)']].forEach(([k, col, tc]) => {
+      const h = hh * w[k] / w.resp; if (!h) return;
+      g += `<rect class="rbar" style="animation-delay:${(wi * 0.06).toFixed(2)}s" x="${x0.toFixed(1)}" y="${yc.toFixed(1)}" width="${bw}" height="${h.toFixed(1)}" fill="${col}"/>`;
+      if (h >= 15) g += `<text x="${cx.toFixed(1)}" y="${(yc + h / 2 + 4).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="900" fill="${tc}">${w[k]}</text>`;
+      yc += h;
+    });
+    g += `<text x="${cx.toFixed(1)}" y="${T - 10}" text-anchor="middle" font-size="15" font-weight="900" fill="${_NPS_TXT[_npsTone(w.nps, metaNps)]}">${_npsSgn(w.nps)}</text>`;
+    g += `<text x="${cx.toFixed(1)}" y="${H - 9}" text-anchor="middle" font-size="11" font-weight="${w.n === sem ? 900 : 700}" fill="var(--text-2)">S${w.n} · n${w.resp}</text></g>`;
+    x0 += bw + gap;
+  });
+  return `<svg class="nps-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mezcla semanal de respuestas">${g}</svg>`;
+}
+
+// Paletas verticales de participación (resp/base) por semana. La participación
+// no tiene meta por default (metaPart null): sin banda/línea/etiqueta y paletas
+// en --nps-prom. Con meta numérica: banda --mid-bg + línea navy + semáforo.
+function npsPartSVG(ws, metaPart) {
+  const W = 300, H = 220, L = 30, R = 16, T = 30, B = 28, n = ws.length;
+  const hayMeta = metaPart != null && metaPart !== '' && !isNaN(metaPart);
+  const x = i => n > 1 ? L + 14 + (W - L - R - 28) * (i / (n - 1)) : L + (W - L - R) / 2;
+  const y = p => T + (H - T - B) * (1 - Math.max(0, Math.min(100, p)) / 100);
+  const ym = hayMeta ? y(Number(metaPart)) : null, dos = n >= 4;   // muchas semanas → etiqueta del eje en 2 renglones
+  let g = '';
+  [0, 50, 100].forEach(p => { g += `<line x1="${L}" x2="${W - R}" y1="${y(p).toFixed(1)}" y2="${y(p).toFixed(1)}" stroke="var(--surf3)"/><text x="${L - 6}" y="${(y(p) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-4)">${p}%</text>`; });
+  if (hayMeta) {
+    g += `<rect x="${L}" y="${y(100).toFixed(1)}" width="${W - L - R}" height="${(ym - y(100)).toFixed(1)}" fill="var(--mid-bg)"/>`;
+    g += `<line x1="${L}" x2="${W - R}" y1="${ym.toFixed(1)}" y2="${ym.toFixed(1)}" stroke="var(--navy)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  }
+  // Colocación de etiquetas sin encimarse: cajas ya ocupadas (puntos, leyenda
+  // de la meta y etiquetas previas). Cada etiqueta prueba varias posiciones y
+  // toma la primera que no choca con nada ni cruza la línea de meta (si la hay).
+  const cajas = [];
+  ws.forEach((w, i) => { if (w.part != null) { const cx = x(i), cy = y(w.part); cajas.push({ x0: cx - 8, x1: cx + 8, y0: cy - 8, y1: cy + 8 }); } });
+  const choca = b => cajas.some(o => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0)
+    || (ym != null && b.y0 < ym && b.y1 > ym) || b.x0 < L - 4 || b.x1 > W || b.y0 < 0 || b.y1 > y(0) + 1;
+  if (hayMeta) {
+    // "meta N%": a la derecha sobre la línea; si un punto la tapa, debajo o a la izquierda.
+    const metaTxt = `meta ${metaPart}%`, mw = metaTxt.length * 5.6;
+    const mCand = [[W - R, ym - 5, 'end'], [W - R, ym + 13, 'end'], [L + 4, ym - 5, 'start'], [L + 4, ym + 13, 'start']]
+      .map(([tx, b, a]) => ({ tx, b, a, box: { x0: a === 'end' ? tx - mw : tx, x1: a === 'end' ? tx : tx + mw, y0: b - 9, y1: b + 2 } }));
+    const mPos = mCand.find(k => !choca(k.box)) || mCand[0];
+    cajas.push(mPos.box);
+    g += `<text x="${mPos.tx}" y="${mPos.b.toFixed(1)}" text-anchor="${mPos.a}" font-size="10" font-weight="900" fill="var(--navy)">${metaTxt}</text>`;
+  }
+  ws.forEach((w, i) => {
+    const cx = x(i), last = i === n - 1;
+    const lbl = dos
+      ? `<text x="${cx.toFixed(1)}" y="${H - 17}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-2)">S${w.n}</text><text x="${cx.toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="var(--text-3)">${w.resp}/${w.base}</text>`
+      : `<text x="${cx.toFixed(1)}" y="${H - 9}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--text-2)">S${w.n} · ${w.resp}/${w.base}</text>`;
+    if (w.part == null) { g += lbl; return; }   // sin base capturada: solo etiqueta
+    const p = w.part, col = hayMeta ? _NPS_FILL[_npsTone(p, Number(metaPart))] : 'var(--nps-prom)', cy = y(p);
+    g += `<g><title>Sem ${w.n}${SEMANAS[w.n] ? ` · ${SEMANAS[w.n]}` : ''} · ${w.resp} de ${w.base} agentes respondieron (${p}%)</title>`;
+    g += `<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${y(0).toFixed(1)}" y2="${cy.toFixed(1)}" stroke="${col}" stroke-width="3"/>`;
+    g += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="7" fill="${col}" stroke="var(--surface)" stroke-width="2"/></g>`;
+    // Etiqueta al lado del punto (la última prefiere la izquierda para no
+    // recortarse); si choca: centrada arriba, al otro lado, o abajo del punto.
+    const tw = String(p).length * 7 + 9, lado = last ? -1 : 1;
+    const cand = [
+      [lado, cy - 8], [0, cy - 13], [-lado, cy - 8], [lado, cy + 22], [-lado, cy + 22], [lado, cy + 4], [-lado, cy + 4],
+    ].map(([s, b]) => {
+      const tx = s === 0 ? cx : cx + s * 12;
+      const x0 = s === 0 ? tx - tw / 2 : s > 0 ? tx : tx - tw;
+      return { s, tx, b, box: { x0, x1: x0 + tw, y0: b - 10, y1: b + 1 } };
+    });
+    const pos = cand.find(k => !choca(k.box)) || cand[0];
+    cajas.push(pos.box);
+    g += `<text x="${pos.tx.toFixed(1)}" y="${pos.b.toFixed(1)}" text-anchor="${pos.s === 0 ? 'middle' : pos.s > 0 ? 'start' : 'end'}" font-size="12" font-weight="900" fill="var(--navy)">${p}%</text>`;
+    g += lbl;
+  });
+  return `<svg class="nps-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Participación semanal">${g}</svg>`;
+}
+
+// Evolución: bandas por mes, NPS semanal (puntos arena) y NPS acumulado
+// (línea --nps-prom + área). Valor marcado al cierre de cada mes y en el último punto.
+// Paso por semana acotado: con pocas semanas se agrupan a la izquierda y los
+// meses se van agregando a la derecha conforme avanza el año.
+function npsEvoSVG(c, evo, metaNps) {
+  const L = 40, R = 64, T = 34, B = 30, H = 270, n = evo.length;
+  const step = Math.max(22, Math.min(78, (1040 - L - R) / Math.max(n, 1)));
+  const W = Math.max(1040, Math.ceil(L + R + step * n));
+  const vals = evo.map(e => e.nps).concat(evo.map(e => e.acum), [metaNps]);
+  const lo = Math.min(0, Math.floor(Math.min(...vals) / 25) * 25), hi = 100;
+  const x = i => L + step * (i + .5), y = v => T + (H - T - B) * (1 - (v - lo) / (hi - lo));
+  const ym = y(metaNps), gid = 'npsEvo' + String(c.id).replace(/[^\w-]/g, '');
+  let g = '', i0 = 0, k = 0;
+  // Bandas alternadas por mes (solo meses con datos) + nombre del mes arriba
+  evo.forEach((e, i) => {
+    if (i === n - 1 || evo[i + 1].mes !== e.mes) {
+      const bx = L + step * i0, bw = step * (i - i0 + 1);
+      g += `<rect x="${bx.toFixed(1)}" y="${T - 24}" width="${bw.toFixed(1)}" height="${H - T - B + 24}" fill="${k % 2 ? 'var(--surface)' : 'var(--surf2)'}"/>`;
+      g += `<text x="${(bx + 8).toFixed(1)}" y="${T - 9}" font-size="11" font-weight="900" fill="var(--text-3)" letter-spacing=".08em">${(MESES_CORTOS[e.mes] || '').toUpperCase()}</text>`;
+      i0 = i + 1; k++;
+    }
+  });
+  for (let v = lo; v <= hi; v += 25) g += `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--border)" stroke-opacity=".45"/><text x="${L - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-4)">${v}</text>`;
+  g += `<line x1="${L}" x2="${W - R}" y1="${ym.toFixed(1)}" y2="${ym.toFixed(1)}" stroke="var(--navy)" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+  g += `<text x="${W - R + 6}" y="${(ym + 4).toFixed(1)}" font-size="10" font-weight="900" fill="var(--navy)">meta ${_npsSgn(metaNps)}</text>`;
+  evo.forEach((e, i) => { g += `<circle cx="${x(i).toFixed(1)}" cy="${y(e.nps).toFixed(1)}" r="4" fill="var(--pasivo)" stroke="var(--nps-prom)" stroke-opacity=".45" stroke-width="1"><title>Sem ${e.n}${SEMANAS[e.n] ? ` · ${SEMANAS[e.n]}` : ''} · NPS de la semana ${_npsSgn(e.nps)}</title></circle>`; });
+  const path = evo.map((e, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(e.acum).toFixed(1)}`).join(' ');
+  g += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--nps-prom);stop-opacity:.16"/><stop offset="1" style="stop-color:var(--nps-prom);stop-opacity:0"/></linearGradient></defs>`;
+  g += `<path class="rarea" d="${path} L${x(n - 1).toFixed(1)} ${y(lo).toFixed(1)} L${x(0).toFixed(1)} ${y(lo).toFixed(1)} Z" fill="url(#${gid})"/>`;
+  g += `<path class="rline" d="${path}" fill="none" stroke="var(--nps-prom)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`;
+  // Etiquetas del eje: con muchas semanas se muestran salteadas para no encimarse.
+  const cada = Math.max(1, Math.ceil(24 / step));
+  evo.forEach((e, i) => {
+    const cx = x(i), cy = y(e.acum), last = i === n - 1, cierre = e.cierreMes || last, t = _npsTone(e.acum, metaNps);
+    g += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${cierre ? 6 : 3.5}" fill="${cierre ? _NPS_FILL[t] : 'var(--nps-prom)'}" stroke="var(--surface)" stroke-width="${cierre ? 2 : 0}"><title>Sem ${e.n} · NPS acumulado ${_npsSgn(e.acum)}</title></circle>`;
+    if (cierre) {
+      // Arriba del punto por default; abajo si choca con la meta, con el punto
+      // gris de esa semana o con el nombre del mes (borde superior).
+      const up = cy - 12, dn = cy + 24;
+      const bad = yy => Math.abs(yy - 5 - ym) < 9 || Math.abs(yy - 5 - y(e.nps)) < 11 || yy - 12 < T - 4;
+      const ly = bad(up) && !bad(dn) ? dn : up;
+      g += `<text x="${cx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" font-size="${last ? 15 : 13}" font-weight="900" fill="var(--navy)">${_npsSgn(e.acum)}</text>`;
+    }
+    if (i % cada === 0 || last) g += `<text x="${cx.toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10" font-weight="${e.n === sem ? 900 : 400}" fill="var(--text-4)">S${e.n}</text>`;
+  });
+  const minW = Math.round(820 * W / 1040);   // en móvil: legible + scroll horizontal
+  return `<svg class="nps-svg" viewBox="0 0 ${W} ${H}" style="min-width:${minW}px" role="img" aria-label="Evolución del NPS acumulado">${g}</svg>`;
 }
 
 // ── Handlers de UI ──────────────────────────────────────────────────────────

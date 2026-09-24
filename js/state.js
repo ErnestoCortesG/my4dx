@@ -323,4 +323,24 @@ function _migrarST() {
       delete c.dash;
     }
   }
+  // Dashboard "NPS a agentes" (tipo 'nps') para Sandra (Promotorías, 'iegnp3x')
+  // y Maricruz (Franquicias, 'l987s5v'). Conteos semanales de la encuesta
+  // (base, promotores, pasivos, detractores) capturados desde Admin.
+  // Idempotente: busca por id de contributivo en todos los integrantes y
+  // normaliza el payload sin borrar semanas ya capturadas. No toca `preds`.
+  // metaPart: null = "sin meta" (explícito); se respeta si ya existe la clave.
+  const npsDef = (typeof NPS_META_DEF !== 'undefined') ? NPS_META_DEF : { nps: 70, part: null };
+  (ST.miembros || []).forEach(m => {
+    (m.contributivos || []).forEach(c => {
+      if (c.id !== 'iegnp3x' && c.id !== 'l987s5v') return;
+      const prev = c.nps || null;
+      const has = k => !!prev && Object.prototype.hasOwnProperty.call(prev, k);
+      c.tipo = 'nps';
+      c.nps = {
+        metaNps:  (prev && typeof prev.metaNps === 'number' && isFinite(prev.metaNps)) ? prev.metaNps : npsDef.nps,
+        metaPart: (has('metaPart') && prev.metaPart !== undefined) ? prev.metaPart : npsDef.part,
+        semanas:  (prev && prev.semanas) ? prev.semanas : {},
+      };
+    });
+  });
 }

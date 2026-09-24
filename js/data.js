@@ -134,6 +134,11 @@ const MCICFG_DEF = { 1:{tipo:'agrupada', metaLinea:70}, 2:{tipo:'apilada', metaL
 // 'clavesvend'): conteo de claves nuevas por semana, alimentado manualmente.
 const CLAVESVEND_META_DEF = 250;
 
+// Metas por defecto del dashboard "NPS a agentes" (tipo 'nps'): NPS en escala
+// -100..+100. La participación (% respuestas / base) NO tiene meta por
+// defecto: `part: null` = sin meta (solo se muestra, no se evalúa).
+const NPS_META_DEF = { nps: 70, part: null };
+
 // ── MCI generales de un integrante ────────────────────────────────────────
 // Unión de los MCI generales de todos sus MCI contributivos (fuente de verdad
 // de la alineación; ya no existe alineación manual a nivel integrante).

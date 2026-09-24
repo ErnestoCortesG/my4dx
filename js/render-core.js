@@ -178,6 +178,12 @@ function contribScore(c) {
     return Math.min(100, Math.max(0, Math.round(
       clavesVendAcum(c, sem) / (c.clavesvend.metaTotal || 1) * 100)));
   }
+  if (c && c.tipo === 'nps' && c.nps) {
+    // NPS: % de la meta de NPS alcanzado con el acumulado hasta la semana `sem`.
+    const t = npsTotal(c, sem);
+    if (t.resp === 0) return null;
+    return Math.min(100, Math.max(0, Math.round(t.nps / (c.nps.metaNps || 70) * 100)));
+  }
   return contribScoreAcum(c);
 }
 
@@ -199,6 +205,81 @@ function clavesVendAcum(c, hasta) {
   return Object.keys(sems).reduce((tot, k) => {
     return (parseInt(k, 10) <= hasta) ? tot + clavesVendSemana(c, k) : tot;
   }, 0);
+}
+
+// ── NPS (tipo 'nps') ───────────────────────────────────────────────────────
+// Payload: c.nps = { metaNps, metaPart, semanas:{ [n]:{ base, p, pa, d } } }.
+// Conteos por semana (no acumulados, no heredados). Los agregados SUMAN p/pa/d
+// y recalculan el NPS (nunca se promedian NPS semanales).
+function npsCalc(o) {
+  const x = o || {};
+  const base = parseInt(x.base, 10) || 0;
+  const p    = parseInt(x.p, 10)    || 0;
+  const pa   = parseInt(x.pa, 10)   || 0;
+  const d    = parseInt(x.d, 10)    || 0;
+  const resp = p + pa + d;
+  return {
+    base, p, pa, d, resp,
+    nps:  resp ? Math.round((p - d) / resp * 100) : null,
+    part: base ? Math.round(resp / base * 100) : null,
+  };
+}
+
+// Semanas capturadas con n ≤ hasta y al menos una respuesta, ascendente.
+function npsSemanas(c, hasta) {
+  const sems = c && c.nps && c.nps.semanas;
+  if (!sems) return [];
+  return Object.keys(sems)
+    .map(k => parseInt(k, 10))
+    .filter(n => !isNaN(n) && n <= hasta)
+    .sort((a, b) => a - b)
+    .map(n => Object.assign({ n, mes: MES_DE_SEM[n] }, npsCalc(sems[n])))
+    .filter(w => w.resp > 0);
+}
+
+// Suma p/pa/d de un arreglo de semanas; base = la de la última semana.
+function npsSuma(arr) {
+  const a = arr || [];
+  if (!a.length) return npsCalc({});
+  const s = a.reduce((t, w) => ({ p: t.p + (w.p || 0), pa: t.pa + (w.pa || 0), d: t.d + (w.d || 0) }),
+    { p: 0, pa: 0, d: 0 });
+  s.base = a[a.length - 1].base || 0;
+  return npsCalc(s);
+}
+
+// Agregado por mes (solo meses con ≥1 semana), ascendente.
+function npsMeses(c, hasta) {
+  const porMes = {};
+  npsSemanas(c, hasta).forEach(w => { (porMes[w.mes] = porMes[w.mes] || []).push(w); });
+  return Object.keys(porMes)
+    .map(k => parseInt(k, 10))
+    .sort((a, b) => a - b)
+    .map(mes => Object.assign({ mes, semanas: porMes[mes] }, npsSuma(porMes[mes])));
+}
+
+// Total acumulado hasta la semana `hasta`.
+function npsTotal(c, hasta) {
+  return npsSuma(npsSemanas(c, hasta));
+}
+
+// Evolución semanal: NPS de la semana + NPS acumulado corrido + cierre de mes.
+function npsEvolucion(c, hasta) {
+  const ws = npsSemanas(c, hasta);
+  let p = 0, pa = 0, d = 0;
+  return ws.map((w, i) => {
+    p += w.p; pa += w.pa; d += w.d;
+    return {
+      n: w.n, mes: w.mes, nps: w.nps,
+      acum: npsCalc({ p, pa, d }).nps,
+      cierreMes: (i === ws.length - 1) || ws[i + 1].mes !== w.mes,
+    };
+  });
+}
+
+// Mes (0-11) que muestra "Semanas del mes": el de la última semana con datos.
+function npsMesVista(c, hasta) {
+  const ws = npsSemanas(c, hasta);
+  return ws.length ? ws[ws.length - 1].mes : null;
 }
 
 // ── Score del INTEGRANTE ────────────────────────────────────────────────────
