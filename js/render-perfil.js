@@ -69,7 +69,20 @@ function renderPerfil() {
           ? clavesVendDashHTML(active)
           : (active.tipo === 'nps' && active.nps)
             ? npsDashHTML(active)
-            : contribMedidasHTML(active, ro);
+            : (active.tipo === 'cps')
+              ? cpsEmbedHTML(active)
+              : contribMedidasHTML(active, ro);
+
+  // Único contributivo tipo Click Performance → el banner refleja la tarjeta
+  // de cabecera de su Inicio (meta del mes / vamos en / nos faltan / avance).
+  const cpsSolo = (contribs.length === 1 && contribs[0].tipo === 'cps') ? contribs[0] : null;
+  if (cpsSolo) cpsCargar(cpsPuerto(cpsSolo));   // refresca en 2º plano (máx. 1/min)
+  const bannerHTML = cpsSolo ? cpsBannerHTML(cpsSolo) : `
+    <div class="perf-banner" style="border-color:${bCol}">
+      <div><div class="pb-lab">Cumplimiento MCI Contributivo</div><div class="pb-sub">promedio de tableros con datos</div></div>
+      <div class="pb-big" style="color:${bCol}">${bAvg !== null ? bAvg + '%' : '—'}</div>
+      <div class="pb-parts">${bParts}</div>
+    </div>`;
 
   document.getElementById('perfil-content').innerHTML = `
     <div class="perf-back-bar">
@@ -91,11 +104,7 @@ function renderPerfil() {
       </div>
     </div>
 
-    <div class="perf-banner" style="border-color:${bCol}">
-      <div><div class="pb-lab">Cumplimiento MCI Contributivo</div><div class="pb-sub">promedio de tableros con datos</div></div>
-      <div class="pb-big" style="color:${bCol}">${bAvg !== null ? bAvg + '%' : '—'}</div>
-      <div class="pb-parts">${bParts}</div>
-    </div>
+    ${bannerHTML}
 
     ${tabbar}
     <div class="ctab-pane">${content}</div>
@@ -110,6 +119,70 @@ function renderPerfil() {
 function _flushClavesVendCharts() {
   const ids = _cvPending; _cvPending = [];
   ids.forEach(cid => requestAnimationFrame(() => renderClavesVendChart(cid)));
+}
+
+// ── Contributivo tipo Click Performance ('cps', ej. Nataly) ─────────────────
+// Banner = reflejo de la tarjeta de cabecera del Inicio del CPS; contenido =
+// el Inicio embebido (?embed=inicio&mes=N, solo lectura, no toca el estado de
+// la app de Nataly). El mes sigue a la semana global `sem`.
+let _cpsAlto = 900;   // último alto informado por el iframe (evita el salto al re-render)
+
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || d.tipo !== 'cps-embed-alto' || !(d.alto > 0)) return;
+  document.querySelectorAll('iframe.cps-frame').forEach(f => {
+    if (f.contentWindow === e.source) { _cpsAlto = d.alto; f.style.height = d.alto + 'px'; }
+  });
+});
+
+function cpsUrl(c) {
+  return `${location.protocol}//${location.hostname}:${cpsPuerto(c)}/?embed=inicio&mes=${MES_DE_SEM[sem]}`;
+}
+
+function cpsBannerHTML(c) {
+  const d = CPS_DATA[cpsPuerto(c)];
+  const v = cpsInicio(c, MES_DE_SEM[sem]);
+  const mesTxt = MESES_LARGO[MES_DE_SEM[sem]] + ' 2026';
+  if (!v) {
+    const txt = !d ? 'Cargando datos de Click Performance…'
+      : `Click Performance no está disponible (puerto ${cpsPuerto(c)}).`;
+    return `<div class="perf-banner cps-banner" style="border-color:#aaa">
+      <div><div class="pb-lab">Cumplimiento MCI Contributivo</div><div class="pb-sub">${esc(txt)}</div></div>
+    </div>`;
+  }
+  const n = x => x === null ? null : Number(x).toLocaleString('es-MX');
+  const col = { gana: 'var(--green)', camino: 'var(--yellow-dk)', pierde: 'var(--cta)' }[v.estado] || '#aaa';
+  const cel = (lab, val, sub, color) => `<div class="cpsb-cel">
+      <span class="cpsb-lab" style="color:${color}">${lab}</span>
+      <span class="cpsb-num ${val === null ? 'vacio' : ''}" style="${val === null ? '' : 'color:' + color}">${val === null ? 'Sin capturar' : val}</span>
+      <span class="cpsb-sub">${sub}</span>
+    </div>`;
+  const pctTxt = v.cumpl !== null ? Math.round(v.cumpl) + '%' : (v.meta === null ? 'Sin meta' : 'Sin avance');
+  return `<div class="perf-banner cps-banner" style="border-color:${col}">
+    <div class="cpsb-tit">
+      <div class="pb-lab">Cumplimiento MCI Contributivo</div>
+      <div class="pb-sub">Click Performance · ${esc(mesTxt)}</div>
+    </div>
+    ${cel('META DEL MES (MCI)', n(v.meta), 'LEADS CONFIRMADOS', 'var(--navy)')}
+    ${cel('VAMOS EN', n(v.real), 'LEADS CONFIRMADOS', 'var(--green-dk)')}
+    ${cel('NOS FALTAN', v.meta === null || v.real === null ? null : n(v.faltan), 'LEADS PARA LA META', '#E8740C')}
+    <div class="cpsb-av">
+      <div class="cpsb-bar"><div style="transform:scaleX(${v.cumpl === null ? 0 : Math.min(100, v.cumpl) / 100});background:${col}"></div></div>
+      <div class="cpsb-pct">
+        <span class="${v.cumpl === null ? 'vacio' : ''}" style="${v.cumpl === null ? '' : 'color:' + col}">${pctTxt}</span>
+        <small>AVANCE DE LA META</small>
+      </div>
+    </div>
+  </div>`;
+}
+
+function cpsEmbedHTML(c) {
+  const d = CPS_DATA[cpsPuerto(c)];
+  if (d && d.error) {
+    return `<div class="cps-off">Click Performance no está disponible — verifica que su servidor esté corriendo en el puerto ${cpsPuerto(c)}.</div>`;
+  }
+  return `<iframe class="cps-frame" src="${esc(cpsUrl(c))}" title="Click Performance · Inicio"
+    style="height:${_cpsAlto}px" loading="lazy"></iframe>`;
 }
 
 // ── Contributivo NORMAL (medidas predictivas) ──────────────────────────────

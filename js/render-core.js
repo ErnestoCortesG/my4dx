@@ -184,7 +184,61 @@ function contribScore(c) {
     if (t.resp === 0) return null;
     return Math.min(100, Math.max(0, Math.round(t.nps / (c.nps.metaNps || 70) * 100)));
   }
+  if (c && c.tipo === 'cps') {
+    // Click Performance: avance de la meta del mes (mes de la semana `sem`).
+    const v = cpsInicio(c, MES_DE_SEM[sem]);
+    return (v && v.cumpl !== null) ? Math.min(100, Math.round(v.cumpl)) : null;
+  }
   return contribScoreAcum(c);
+}
+
+// ── Click Performance (tipo 'cps', ej. Nataly) ─────────────────────────────
+// El perfil embebe el Inicio del proyecto Click Performance (otro servidor,
+// mismo equipo, puerto c.cps.puerto) y el banner refleja su tarjeta de
+// cabecera. Los datos llegan vía /api/cps-inicio (proxy del server.py) y se
+// guardan aquí; cpsInicio() replica las fórmulas de dash.js del CPS.
+const CPS_DATA = {};       // { [puerto]: { capturas, metaMensual, uVerde, uAmarillo } | { error } }
+const _cpsTs = {};         // { [puerto]: ms del último fetch }
+
+function cpsPuerto(c) { return (c && c.cps && c.cps.puerto) || 8010; }
+
+async function cpsCargar(puerto, forzar) {
+  const ahora = Date.now();
+  if (!forzar && _cpsTs[puerto] && ahora - _cpsTs[puerto] < 60000) return;
+  _cpsTs[puerto] = ahora;
+  let d;
+  try {
+    const res = await fetch('/api/cps-inicio?puerto=' + encodeURIComponent(puerto));
+    d = res.ok ? await res.json() : { error: true };
+  } catch (_) { d = { error: true }; }
+  const antes = JSON.stringify(CPS_DATA[puerto] || null);
+  CPS_DATA[puerto] = d;
+  if (JSON.stringify(d) !== antes) renderAll();
+}
+
+// Carga los datos de todos los contributivos tipo 'cps' (en segundo plano).
+function cpsCargarTodos(forzar) {
+  const puertos = new Set();
+  (ST.miembros || []).forEach(m => (m.contributivos || []).forEach(c => {
+    if (c.tipo === 'cps') puertos.add(cpsPuerto(c));
+  }));
+  puertos.forEach(p => cpsCargar(p, forzar));
+}
+
+// Valores de la tarjeta de cabecera del Inicio para el mes `mes` (0-11).
+// null = sin datos del CPS (no disponible o aún cargando).
+function cpsInicio(c, mes) {
+  const d = CPS_DATA[cpsPuerto(c)];
+  if (!d || d.error) return null;
+  const cap = (d.capturas || [])[mes] || {};
+  const nulo = v => v === null || v === undefined;
+  const meta = !nulo(cap.meta) ? cap.meta : (nulo(d.metaMensual) ? null : d.metaMensual);   // metaDe()
+  const real = nulo(cap.confirmados) ? null : cap.confirmados;
+  const cumpl = (meta === null || real === null || !meta) ? null : real / meta * 100;           // div()
+  const uV = nulo(d.uVerde) ? 90 : d.uVerde;
+  const uA = nulo(d.uAmarillo) ? 50 : d.uAmarillo;
+  const estado = cumpl === null ? null : cumpl >= uV ? 'gana' : cumpl >= uA ? 'camino' : 'pierde';
+  return { mes, meta, real, faltan: (meta === null || real === null) ? null : Math.max(0, meta - real), cumpl, estado };
 }
 
 // ── Claves de vendedores (tipo 'clavesvend') ───────────────────────────────

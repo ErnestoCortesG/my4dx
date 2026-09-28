@@ -68,4 +68,5 @@ function volverTablero() {
   await restoreSession();   // si hay token guardado, restaura la sesión
   setupDraggable();
   renderAll();
+  cpsCargarTodos();         // datos de Click Performance (contributivo tipo 'cps'), en segundo plano
 })();

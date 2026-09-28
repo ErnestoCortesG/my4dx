@@ -47,7 +47,9 @@ function adminContribHTML() {
           ? renovAdminHTML(c)
           : (c.tipo === 'nps')
             ? npsAdminHTML(c)
-            : `<div class="mcont-preds">
+            : (c.tipo === 'cps')
+              ? cpsAdminHTML(c)
+              : `<div class="mcont-preds">
           <div class="predrow predrow-hdr">
             <span class="waelbl" style="flex:1">Medida</span>
             <span class="waelbl" style="width:60px">Meta</span>
@@ -816,4 +818,35 @@ async function delNpsSemana(cid, n) {
   renderPerfil();
   guardarConfig();
   toast('Captura borrada', 'ok');
+}
+
+// ── Click Performance (tipo 'cps', ej. Nataly) ─────────────────────────────
+// Sin captura aquí: los datos se capturan en Click Performance. Solo se
+// configura el puerto de su servidor (misma máquina que my4DX).
+function cpsAdminHTML(c) {
+  const p = cpsPuerto(c);
+  const d = CPS_DATA[p];
+  const est = !d ? 'Cargando…' : d.error ? 'No disponible' : 'Conectado';
+  return `<div class="mcont-preds">
+    <div style="font-size:11px;color:var(--text-3);line-height:1.5;margin-bottom:8px">
+      El perfil muestra el <strong>Inicio de Click Performance</strong> embebido y el banner refleja su
+      tarjeta de cabecera (meta del mes, vamos en, nos faltan, avance). La información se captura en Click Performance.
+    </div>
+    <div class="cv-meta-row">
+      <label><span class="waelbl">Puerto del servidor</span>
+        <input type="number" class="predinp cv-num" min="1024" max="65535" value="${p}"
+          onchange="saveCpsPuerto('${c.id}',this.value)"></label>
+      <span style="font-size:11px;color:var(--text-3);align-self:flex-end;padding-bottom:4px">Estado: <strong>${est}</strong></span>
+    </div>
+  </div>`;
+}
+
+function saveCpsPuerto(cid, val) {
+  const c = _findContrib(cid); if (!c) return;
+  const p = parseInt(val, 10);
+  if (!(p >= 1024 && p <= 65535)) { toast('Puerto inválido (1024–65535)', 'warn'); renderAdmin(); return; }
+  c.cps = { puerto: p };
+  guardarConfig();
+  cpsCargar(p, true);
+  renderAll();
 }

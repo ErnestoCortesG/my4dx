@@ -343,4 +343,16 @@ function _migrarST() {
       };
     });
   });
+  // Click Performance (tipo 'cps') para Nataly ('ctzhdry'): el perfil muestra
+  // el Inicio de ese proyecto embebido; sus datos viven allá, no aquí. Las
+  // medidas predictivas previas se retiran (el iframe las reemplaza).
+  // Idempotente: conserva el puerto si ya está configurado.
+  (ST.miembros || []).forEach(m => {
+    (m.contributivos || []).forEach(c => {
+      if (c.id !== 'ctzhdry') return;
+      c.tipo = 'cps';
+      c.cps = { puerto: (c.cps && c.cps.puerto) || 8010 };
+      c.preds = [];
+    });
+  });
 }

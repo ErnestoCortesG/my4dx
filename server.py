@@ -20,7 +20,8 @@ import time
 import hashlib
 import hmac
 import secrets
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
+import urllib.request
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 
@@ -246,10 +247,41 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._get_session()
         elif path == '/api/users':
             self._get_users()
+        elif path == '/api/cps-inicio':
+            self._get_cps_inicio()
         elif path in ('/', '/index.html'):
             self._serve_index()
         else:
             super().do_GET()   # archivos estáticos (css/, js/, etc.)
+
+    def _get_cps_inicio(self):
+        """Resumen de la tarjeta de cabecera del Inicio de Click Performance
+        (contributivo tipo 'cps', Nataly): lee /api/state del servidor CPS en
+        esta misma máquina y devuelve solo meta/confirmados por mes + la meta y
+        umbrales de Configuración. Solo lectura; puerto acotado a localhost."""
+        qs = parse_qs(urlparse(self.path).query)
+        try:
+            puerto = int(qs.get('puerto', ['8010'])[0])
+        except ValueError:
+            puerto = 0
+        if not 1024 <= puerto <= 65535:
+            self._json(400, json.dumps({'error': 'puerto_invalido'}).encode('utf-8'))
+            return
+        try:
+            with urllib.request.urlopen(f'http://127.0.0.1:{puerto}/api/state', timeout=3) as r:
+                st = json.loads(r.read().decode('utf-8'))
+        except Exception as e:
+            self._json(502, json.dumps({'error': 'cps_no_disponible', 'mensaje': str(e)}).encode('utf-8'))
+            return
+        cfg = st.get('config') or {}
+        out = {
+            'capturas':    [{'meta': c.get('meta'), 'confirmados': c.get('confirmados')}
+                            for c in (st.get('capturasMensuales') or [])],
+            'metaMensual': cfg.get('metaMensual'),
+            'uVerde':      cfg.get('uVerde'),
+            'uAmarillo':   cfg.get('uAmarillo'),
+        }
+        self._json_ok(json.dumps(out).encode('utf-8'))
 
     def _serve_index(self):
         """Sirve index.html con ?v=START_TS inyectado en todos los <script> y <link>."""
