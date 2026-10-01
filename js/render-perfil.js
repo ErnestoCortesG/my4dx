@@ -77,7 +77,10 @@ function renderPerfil() {
   // de cabecera de su Inicio (meta del mes / vamos en / nos faltan / avance).
   const cpsSolo = (contribs.length === 1 && contribs[0].tipo === 'cps') ? contribs[0] : null;
   if (cpsSolo) cpsCargar(cpsPuerto(cpsSolo));   // refresca en 2º plano (máx. 1/min)
-  const bannerHTML = cpsSolo ? cpsBannerHTML(cpsSolo) : `
+  // Con tablero de claves de vendedores (Victoria, Leslie): banner llamativo con
+  // el panel de estado del NPS; semáforo del acumulado vs meta anual.
+  const cvC = contribs.find(c => c.tipo === 'clavesvend');
+  const bannerHTML = cpsSolo ? cpsBannerHTML(cpsSolo) : cvC ? clavesBannerHTML(contribs, cvC, bAvg) : `
     <div class="perf-banner" style="border-color:${bCol}">
       <div><div class="pb-lab">Cumplimiento MCI Contributivo</div><div class="pb-sub">promedio de tableros con datos</div></div>
       <div class="pb-big" style="color:${bCol}">${bAvg !== null ? bAvg + '%' : '—'}</div>
@@ -119,6 +122,42 @@ function renderPerfil() {
 function _flushClavesVendCharts() {
   const ids = _cvPending; _cvPending = [];
   ids.forEach(cid => requestAnimationFrame(() => renderClavesVendChart(cid)));
+}
+
+// Banner del perfil con estado (patrón del panel de NPS): % promedio de los
+// contributivos con datos, semáforo vs meta anual (verde ≥100% · amarillo ≥50% ·
+// rojo <50%) y el detalle de claves del contributivo de claves.
+function clavesBannerHTML(contribs, cvC, bAvg) {
+  const tone = bAvg === null ? null : bAvg >= 100 ? 'g' : bAvg >= 50 ? 'y' : 'r';
+  const st = tone ? _NPS_STATUS[tone] : null;
+  const K = cvC.clavesvend || {}, metaTot = K.metaTotal || 0, acum = clavesVendAcum(cvC, sem);
+  const det = metaTot > 0
+    ? `${acum.toLocaleString('es-MX')} de ${metaTot.toLocaleString('es-MX')} claves · ${acum >= metaTot ? 'meta cumplida' : `faltan ${(metaTot - acum).toLocaleString('es-MX')}`}`
+    : `${acum.toLocaleString('es-MX')} claves acumuladas`;
+  const parts = contribs.map(c => {
+    const sc = contribScore(c);
+    const col = sc === null ? 'rgba(255,255,255,.55)' : _NPS_ONNAVY[sc >= 100 ? 'g' : sc >= 50 ? 'y' : 'r'];
+    return `<span class="pbs-part" title="${esc(c.nombre)}"><b style="color:${col}">${sc === null ? '—' : sc + '%'}</b><span class="pbs-pt">${esc(c.nombre)}</span></span>`;
+  }).join('');
+  const stat = tone
+    ? `<div class="nps-stat ${tone}" role="status" aria-label="Cumplimiento MCI contributivo ${bAvg}%: ${st.txt}">
+        <div class="nps-stat-lab">Avance vs meta anual</div>
+        <div class="nps-stat-big">${bAvg}%</div>
+        <div class="nps-stat-st"><span class="nps-stat-ic" aria-hidden="true">${st.ic}</span>${st.txt}</div>
+        <div class="nps-stat-meta">${det}</div>
+      </div>`
+    : `<div class="nps-stat n" role="status">
+        <div class="nps-stat-lab">Avance vs meta anual</div>
+        <div class="nps-stat-big">—</div>
+        <div class="nps-stat-st">Sin datos aún</div>
+      </div>`;
+  return `<div class="perf-banner-st">
+    <div class="pbs-info">
+      <div class="pbs-lab">Cumplimiento MCI Contributivo</div>
+      <div class="pbs-parts">${parts}</div>
+    </div>
+    ${stat}
+  </div>`;
 }
 
 // ── Contributivo tipo Click Performance ('cps', ej. Nataly) ─────────────────
@@ -590,6 +629,7 @@ function clavesVendDashHTML(c) {
       <div class="renov-card cv-chart-col"><div class="renov-ct">Claves de vendedores por semana · por ${esc(clavesVendCatLabels(c).full)}</div><div class="ptbl-wrap" id="cv-chart-host-${c.id}"></div></div>
       ${monthCard}
     </div>
+    <div class="renov-card cv-month-chart"><div class="renov-ct">Avance mensual · claves por mes${mmOn ? ` vs meta de ${mm.valor}` : ''}</div><div class="ptbl-wrap" id="cv-month-host-${c.id}"></div></div>
   </div>`;
 }
 
@@ -603,6 +643,8 @@ function renderClavesVendChart(cid) {
   if (!c) return;
   const availW = host.clientWidth || 360;
   host.innerHTML = clavesVendStackedSVG(c, availW);
+  const mHost = document.getElementById('cv-month-host-' + cid);
+  if (mHost) mHost.innerHTML = clavesVendMonthlySVG(c, mHost.clientWidth || availW);
   // Un solo observer: desconecta el anterior antes de observar el host actual.
   if (_cvResizeObs) _cvResizeObs.disconnect();
   let lastW = availW;
@@ -717,6 +759,70 @@ function clavesVendStackedSVG(c, availW) {
     return svg + `<div class="cv-leg-chips">${chips}</div>`;
   }
   return svg;
+}
+
+// Avance mensual: una barra por mes con datos (hasta el mes de la semana `sem`),
+// de un solo color (solo interesa el total del mes; el desglose por categoría
+// ya está en la gráfica semanal), total arriba, meta mensual (c.metaMensual)
+// punteada y % de la meta con semáforo bajo cada mes. Render 1:1 como la semanal.
+function clavesVendMonthlySVG(c, availW) {
+  const K = c.clavesvend || {};
+  const semanas = K.semanas || {}, estados = K.estados || [];
+  const mesSel = MES_DE_SEM[sem];
+  const porMes = {};
+  Object.keys(semanas).map(Number).filter(n => n <= sem && MES_DE_SEM[n] != null).forEach(n => {
+    const mi = MES_DE_SEM[n], wk = semanas[n] || {};
+    const o = porMes[mi] || (porMes[mi] = { mes: mi, total: 0 });
+    estados.forEach(e => { o.total += Number(wk[e]) || 0; });
+  });
+  const meses = Object.values(porMes).filter(m => m.total > 0).sort((a, b) => a.mes - b.mes);
+  if (!meses.length) {
+    return `<div style="font-size:12px;color:var(--text-3);padding:18px 6px;text-align:center">Aún no hay meses con claves capturadas.</div>`;
+  }
+  const mm = c.metaMensual;
+  const meta = (mm && mm.activo && mm.valor > 0) ? Number(mm.valor) : null;
+  const semCol = v => meta === null ? 'var(--text-3)' : v >= meta ? 'var(--green-dk)' : v >= meta * 0.5 ? 'var(--yellow-dk)' : 'var(--red-dk)';
+
+  const vmax = Math.max(...meses.map(m => m.total), meta || 0, 1);
+  const step = vmax <= 20 ? 2 : vmax <= 60 ? 10 : vmax <= 150 ? 20 : 50;
+  const YMAX = Math.ceil((vmax * 1.12) / step) * step;
+  const AW = Math.max(availW || 360, 220);
+  const PL = 30, PR = meta === null ? 12 : 70, TOP = 22, BOT = 40;
+  const plotW = Math.max(AW - PL - PR, 140);
+  const slot = Math.max(70, Math.min(160, plotW / meses.length));
+  const bw = Math.max(28, Math.min(64, slot * 0.5));
+  const plotRight = PL + meses.length * slot;
+  const W = plotRight + PR;
+  const plotH = 170, baseY = TOP + plotH, H = baseY + BOT;
+  const yOf = v => baseY - (v / YMAX) * plotH;
+  let s = '';
+  for (let g = 0; g <= YMAX; g += step) {
+    const y = yOf(g);
+    s += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${plotRight}" y2="${y.toFixed(1)}" stroke="rgba(5,23,46,.08)"/><text x="${PL-5}" y="${(y+3).toFixed(1)}" font-size="8" fill="var(--text-3)" text-anchor="end">${g}</text>`;
+  }
+  meses.forEach((m, i) => {
+    const cx = PL + slot * i + slot / 2, x = cx - bw / 2;
+    if (m.mes === mesSel) s += `<rect x="${(cx - slot/2 + 3).toFixed(1)}" y="${TOP}" width="${(slot-6).toFixed(1)}" height="${plotH}" fill="#E0A80014" rx="4"/>`;
+    s += `<rect class="rbar" style="animation-delay:${(i*0.06).toFixed(2)}s" x="${x.toFixed(1)}" y="${yOf(m.total).toFixed(1)}" width="${bw.toFixed(1)}" height="${(baseY - yOf(m.total)).toFixed(1)}" rx="3" fill="var(--nps-prom)"><title>${esc(MESES_LARGO[m.mes])}: ${m.total} clave${m.total===1?'':'s'}</title></rect>`;
+    // El total no debe cruzar la línea de meta: si su caja (≈12 px sobre la base
+    // del texto) la toca, se sube por encima de la línea.
+    let ty = yOf(m.total) - 6;
+    if (meta !== null) { const my = yOf(meta); if (ty - 12 < my + 2 && ty > my - 2) ty = my - 5; }
+    s += `<text x="${cx.toFixed(1)}" y="${ty.toFixed(1)}" font-size="13" font-weight="900" fill="var(--ink)" text-anchor="middle">${m.total}</text>`;
+    const cur = m.mes === mesSel;
+    s += `<text x="${cx.toFixed(1)}" y="${(baseY+14).toFixed(1)}" font-size="10" font-weight="${cur?'800':'600'}" fill="${cur?'#a76a00':'var(--text-3)'}" text-anchor="middle">${esc(MESES_LARGO[m.mes])}</text>`;
+    if (meta !== null) {
+      const pct = Math.round(m.total / meta * 100);
+      s += `<text x="${cx.toFixed(1)}" y="${(baseY+29).toFixed(1)}" font-size="10" font-weight="800" fill="${semCol(m.total)}" text-anchor="middle">${pct}% de la meta</text>`;
+    }
+  });
+  s += `<line x1="${PL}" y1="${baseY}" x2="${plotRight}" y2="${baseY}" stroke="var(--text-3)" stroke-opacity=".4"/>`;
+  if (meta !== null) {
+    const my = yOf(meta);
+    s += `<line x1="${PL}" y1="${my.toFixed(1)}" x2="${plotRight}" y2="${my.toFixed(1)}" stroke="var(--navy)" stroke-width="1.4" stroke-dasharray="6 4"/>`;
+    s += `<text x="${plotRight + 6}" y="${(my+3).toFixed(1)}" font-size="9" font-weight="800" fill="var(--navy)">meta ${meta}/mes</text>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block;margin:0 auto" role="img" aria-label="Avance mensual de claves">${s}</svg>`;
 }
 
 // ── Contributivo tipo DASHBOARD NPS (encuesta a agentes) ────────────────────
