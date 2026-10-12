@@ -71,7 +71,9 @@ function renderPerfil() {
             ? npsDashHTML(active)
             : (active.tipo === 'cps')
               ? cpsEmbedHTML(active)
-              : contribMedidasHTML(active, ro);
+              : !active.tipo
+                ? enConstruccionHTML(active)
+                : contribMedidasHTML(active, ro);
 
   // Único contributivo tipo Click Performance → el banner refleja la tarjeta
   // de cabecera de su Inicio (meta del mes / vamos en / nos faltan / avance).
@@ -157,6 +159,21 @@ function clavesBannerHTML(contribs, cvC, bAvg) {
       <div class="pbs-parts">${parts}</div>
     </div>
     ${stat}
+  </div>`;
+}
+
+// ── Contributivo sin tipo definido → "En construcción" ──────────────────────
+function enConstruccionHTML(c) {
+  return `<div class="perf-mci-contributivo">
+    <div class="ec-wrap">
+      <div class="ec-dots">
+        <div class="ec-dot"></div>
+        <div class="ec-dot"></div>
+        <div class="ec-dot"></div>
+      </div>
+      <div class="ec-title">En construcción</div>
+      <div class="ec-sub">Este tablero estará disponible próximamente</div>
+    </div>
   </div>`;
 }
 

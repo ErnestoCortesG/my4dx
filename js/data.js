@@ -122,8 +122,8 @@ const WB = [
   {id:'cg', label:'Conservación global', inicio:55.36, meta:70,   uni:'%',       mci:1, rol:'banner', sub:'2,804 agentes · Meta: 1,963'},
   {id:'fr', label:'Franquicias',         inicio:53.57, meta:70,   uni:'%',       mci:1, rol:'barra',  sub:'Base: 2,177 · Meta: 1,524'},
   {id:'pr', label:'Promotorías',         inicio:61.55, meta:70,   uni:'%',       mci:1, rol:'barra',  sub:'Base: 627 · Meta: 439'},
-  {id:'cl', label:'Agentes',             inicio:591,   meta:1000, uni:' claves', mci:2, rol:'barra',  sub:'Click: 486 · Aseg.: 105/135'},
-  {id:'cv', label:'Vendedores',          inicio:28,    meta:350,  uni:' claves', mci:2, rol:'barra',  sub:'Meta: 35% del total'}
+  {id:'cl', label:'Agentes',             inicio:591,   meta:300,  uni:' claves', mci:2, rol:'barra',  sub:'Click: 486 · Aseg.: 105/135'},
+  {id:'cv', label:'Vendedores',          inicio:28,    meta:250,  uni:' claves', mci:2, rol:'barra',  sub:'Meta: 35% del total'}
 ];
 
 // ── Config por MCI general: tipo de gráfica y meta de la línea del MCI ──────

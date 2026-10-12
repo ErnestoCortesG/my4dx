@@ -269,6 +269,18 @@ table.ptbl tr:hover td{background:#fafaf8}
 .ta{background:#f3e5f5;color:#6a1b9a}.ts{background:#fff3e0;color:#e65100}
 .tn{background:#eceff1;color:#607d8b}
 
+/* EN CONSTRUCCIÓN */
+.ec-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:44px 20px;gap:18px;text-align:center;min-height:200px}
+.ec-dots{display:flex;gap:9px;align-items:center}
+.ec-dot{width:10px;height:10px;border-radius:50%;background:var(--mid);animation:ecBounce 1.3s cubic-bezier(.23,1,.32,1) infinite both}
+.ec-dot:nth-child(1){animation-delay:0s}
+.ec-dot:nth-child(2){animation-delay:.18s;background:var(--navy)}
+.ec-dot:nth-child(3){animation-delay:.36s;background:var(--cta)}
+@keyframes ecBounce{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-10px);opacity:1}}
+@media (prefers-reduced-motion:reduce){.ec-dot{animation:none;opacity:.6}}
+.ec-title{font-size:15px;font-weight:900;color:var(--navy);letter-spacing:.01em}
+.ec-sub{font-size:11px;color:var(--text-3);max-width:230px;line-height:1.5}
+
 /* COMPROMISOS */
 .cblock{background:var(--surface);border:1px solid var(--border2);border-radius:8px;overflow:hidden;margin-bottom:12px}
 .chdr{background:var(--surf2);padding:8px 14px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between}
