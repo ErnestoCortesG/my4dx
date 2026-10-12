@@ -102,10 +102,12 @@ function renderPerfil() {
         ${(() => { const et = etiquetaMCI(m); return `<span class="tag ${et.tc}" style="margin-top:6px;display:inline-block">${esc(et.texto)}</span>`; })()}
       </div>
       <div class="perf-hero-scores">
-        <div class="perf-score-chip" style="border-color:${compSc}">
+        ${m.id === 'nx1nx7y'
+          ? `<a class="perf-pbi-btn" href="https://app.powerbi.com/view?r=eyJrIjoiZTFiYjkzY2YtZGUxNy00NTNhLTgzMGUtNWRiNWM5NGE4MjBhIiwidCI6IjY4OTQzOTZhLWRiMmItNDJhOC1iZjczLTQxM2I3YTAwYmFjYSJ9" target="_blank" rel="noopener"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>MCI Predictivos<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>`
+          : `<div class="perf-score-chip" style="border-color:${compSc}">
           <div class="perf-score-num" style="color:${compSc}">${compPct !== null ? compPct + '%' : '—'}</div>
           <div class="perf-score-lbl">Compromisos</div>
-        </div>
+        </div>`}
       </div>
     </div>
 
