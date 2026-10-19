@@ -4,6 +4,39 @@ Tablero de ejecución **4DX** (Las 4 Disciplinas de la Ejecución) para la Direc
 
 ---
 
+## Estado actual · 19 oct 2026
+
+| | |
+|---|---|
+| **Semana activa** | S43 · 19–25 oct 2026 |
+| **Servidor** | `python server.py` → `http://localhost:8000` |
+| **Acceso LAN** | `http://192.168.3.227:8000` (IP DHCP; verificar con `ipconfig` si no carga) |
+| **Último commit** | `0041145` · 12 oct 2026 |
+| **Rama / remote** | `master` · origin/master — al día |
+
+### Módulos activos
+
+| Módulo | Estado | Notas |
+|---|---|---|
+| **MCI 1 · Conservación** | ✅ Activo | Franquicias + Promotorías + Conservación global; gráfica mensual agrupada |
+| **MCI 2 · Recluta de claves** | ✅ Activo | Vendedores + Agentes; gráfica apilada; meta 550 claves; banner 49% oct |
+| **NPS** (Sandra y Maricruz) | ✅ Activo | Barras semanal promotores/pasivos/detractores + acumulado; meta +70 NPS |
+| **Claves de vendedores** (Victoria y Leslie) | ✅ Activo | Gráfica semanal + mensual; banner anual; metaMensual: Victoria 50, Leslie 60 |
+| **Embed CPS** (Nataly) | ✅ Activo | Iframe `?embed=inicio` de Click Performance + banner de cabecera |
+| **Compromisos** | ⏸ Pausado | Oculto del menú (`display:none`); código presente pero sin usar |
+| **Power BI / MCI Predictivos** (Victoria) | ✅ Activo | Botón en perfil que abre tablero externo; reemplaza el chip de Compromisos |
+| **Contributivo "Certificar"** (Victoria) | 🚧 En construcción | Muestra animación de tres puntos; sin tipo definido aún |
+
+### Datos cargados (oct 2026)
+
+- MCI 1: datos hasta S43 (Conservación global, Franquicias, Promotorías)
+- MCI 2: datos hasta S43 (Vendedores cl=133, Agentes 2ssuox6)
+- NPS: semanas S36–S38 cargadas (Sandra y Maricruz); pendiente cargar S39+
+- Claves de vendedores Victoria: S28–S43 · Leslie: S32–S41
+- Renovación (Sandra y Maricruz): datos históricos migrados al nuevo modelo semanal
+
+---
+
 ## Inicio rápido
 
 ```bash
