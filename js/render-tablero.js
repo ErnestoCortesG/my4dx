@@ -406,8 +406,8 @@ function renderTablero() {
   </div>`;
   const bl = `<div class="contrib-grid">${areas.map(m => {
     const predScore = predScoreAcum(m);
-    const sc  = predScore === null ? '#bbb' : predScore >= 100 ? '#4CAF50' : predScore >= 50 ? '#FFC107' : '#E02500';
-    const bgc = predScore === null ? '#f8f8f8' : predScore >= 100 ? '#f0faf2' : predScore >= 50 ? '#fffbf0' : '#fff5f3';
+    const sc  = predScore === null ? '#bbb' : predScore >= 75 ? '#4CAF50' : predScore >= 50 ? '#FFC107' : '#E02500';
+    const bgc = predScore === null ? '#f8f8f8' : predScore >= 75 ? '#f0faf2' : predScore >= 50 ? '#fffbf0' : '#fff5f3';
     const R = 28, CX = 34, CY = 34, SW = 7;
     const circ = 2 * Math.PI * R;
     const filled = predScore !== null ? (predScore / 100) * circ : 0;
