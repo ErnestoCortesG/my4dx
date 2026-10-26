@@ -20,7 +20,7 @@ const SEMANAS = (() => {
 })();
 const TOTAL_SEM = SEMANAS.length - 1;
 
-// Mes (0–11) al que pertenece cada semana según su fecha de FIN (domingo), y la
+// Mes (0–11) al que pertenece cada semana según su fecha de INICIO (lunes), y la
 // última semana de cada mes — para agregar los valores semanales a nivel mensual.
 const MES_DE_SEM = [null];        // MES_DE_SEM[nSemana] = 0..11
 const ULTIMA_SEM_MES = {};        // { mes(0-11): nSemana de la última semana del mes }
@@ -32,7 +32,7 @@ const ULTIMA_SEM_MES = {};        // { mes(0-11): nSemana de la última semana d
     let fin = new Date(ini);
     fin.setDate(fin.getDate() + (7 - dow));
     if (fin.getFullYear() !== 2026) fin = new Date(2026, 11, 31);
-    const mes = fin.getMonth();
+    const mes = ini.getMonth();
     MES_DE_SEM[wk] = mes;
     ULTIMA_SEM_MES[mes] = wk;      // la última asignada queda como última semana del mes
     ini = new Date(fin);
