@@ -194,7 +194,11 @@ window.addEventListener('message', e => {
 });
 
 function cpsUrl(c) {
-  return `${location.protocol}//${location.hostname}:${cpsPuerto(c)}/?embed=inicio&mes=${MES_DE_SEM[sem]}`;
+  const esLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const base = esLocal
+    ? `${location.protocol}//${location.hostname}:${cpsPuerto(c)}`
+    : 'https://marketing.dashboardclickseguros.app';
+  return `${base}/?embed=inicio&mes=${MES_DE_SEM[sem]}`;
 }
 
 function cpsBannerHTML(c) {
