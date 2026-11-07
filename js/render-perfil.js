@@ -244,7 +244,7 @@ function cpsEmbedHTML(c) {
     return `<div class="cps-off">Click Performance no está disponible — verifica que su servidor esté corriendo en el puerto ${cpsPuerto(c)}.</div>`;
   }
   return `<iframe class="cps-frame" src="${esc(cpsUrl(c))}" title="Click Performance · Inicio"
-    style="height:${_cpsAlto}px" loading="lazy"></iframe>`;
+    style="height:${_cpsAlto}px"></iframe>`;
 }
 
 // ── Contributivo NORMAL (medidas predictivas) ──────────────────────────────
