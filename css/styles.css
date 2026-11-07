@@ -420,7 +420,9 @@ table.ptbl tr:hover td{background:#fafaf8}
 .mcont-id .mcont-cargo{font-size:11px;color:var(--text-2);padding:3px 8px;max-width:360px;background:color-mix(in srgb,var(--surface) 60%,transparent);border-color:transparent}
 .mcont-id .mcont-cargo:hover{border-color:var(--border)}
 .mcont-id .mcont-name:focus,.mcont-id .mcont-cargo:focus{background:var(--surface);border-color:var(--mid)}
-.mcont-del{margin-left:auto;flex-shrink:0;width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:1px solid transparent;border-radius:6px;font-size:18px;line-height:1;color:var(--text-3);cursor:pointer;transition:color .15s ease-out,background .15s ease-out,transform .1s ease-out}
+.mcont-activo-lbl{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--text-3);cursor:pointer;user-select:none;flex-shrink:0}
+.mcont-activo-lbl input[type=checkbox]{accent-color:var(--mc);width:14px;height:14px;cursor:pointer}
+.mcont-del{margin-left:4px;flex-shrink:0;width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:none;border:1px solid transparent;border-radius:6px;font-size:18px;line-height:1;color:var(--text-3);cursor:pointer;transition:color .15s ease-out,background .15s ease-out,transform .1s ease-out}
 .mcont-del:hover{color:var(--cta);background:rgba(224,37,0,.08)}
 .mcont-del:active{transform:scale(0.9)}
 .mcont-mci{padding:8px 14px;border-bottom:1px solid var(--surf3);display:flex;flex-direction:column;gap:4px}

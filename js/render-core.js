@@ -71,7 +71,7 @@ function bannerAvgMCI(n, ws) {
 // ── Sidebar ────────────────────────────────────────────────────────────────
 function renderSidebar() {
   const s = getSem(sem), cs = s.comps || [];
-  document.getElementById('sb-members').innerHTML = ST.miembros.map(m => {
+  document.getElementById('sb-members').innerHTML = ST.miembros.filter(m => m.activo !== false).map(m => {
     // Match por primer apellido para tolerar "Zvi Mitrani" vs "Zvi" en compromisos legacy
     const mine = cs.filter(c => c.lider.split(' ')[0] === m.nombre.split(' ')[0]);
     const pct  = mine.length ? Math.round(mine.filter(c => c.done).length / mine.length * 100) : null;

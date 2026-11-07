@@ -391,8 +391,8 @@ function renderTablero() {
   document.getElementById('twigs').innerHTML =
     divMCI + mciNums.map(n => mciBloque(n, ST.mciTitulos?.[n] || `MCI ${n}`, ST.wigs.filter(w => w.mci === n))).join('');
 
-  // Predictivas — siempre muestra todos los integrantes sin importar la selección
-  const areas = ST.miembros;
+  // Predictivas — solo integrantes activos (activo !== false)
+  const areas = ST.miembros.filter(m => m.activo !== false);
   const tit2 = 'MCI contributivo y medidas predictivas';
   const div = `<div class="divisor">
     <div class="divisor-line"></div>

@@ -103,6 +103,11 @@ function adminContribHTML() {
             placeholder="Cargo / Área"
             onchange="saveMiembroCargo('${m.id}',this.value)">
         </div>
+        <label class="mcont-activo-lbl" title="${m.activo === false ? 'Integrante deshabilitado' : 'Integrante habilitado'}">
+          <input type="checkbox" ${m.activo !== false ? 'checked' : ''}
+            onchange="toggleMiembroActivo('${m.id}',this.checked)">
+          <span>Activo</span>
+        </label>
         <button type="button" class="mcont-del" onclick="delMiembro('${m.id}')" title="Eliminar este integrante y sus medidas">×</button>
       </div>
       <div class="mcont-preds-hdr">
@@ -262,6 +267,14 @@ function saveMiembroCargo(mid, val) {
   const m = ST.miembros.find(x => x.id === mid);
   if (!m) return;
   m.cargo = (val || '').trim();
+  renderAll();
+  guardarConfig();
+}
+
+function toggleMiembroActivo(mid, activo) {
+  const m = ST.miembros.find(x => x.id === mid);
+  if (!m) return;
+  m.activo = activo;
   renderAll();
   guardarConfig();
 }
