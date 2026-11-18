@@ -283,8 +283,6 @@ function renderTablero() {
   // Línea de meta punteada al nivel de metaTotal; leyenda arriba; resalta el mes
   // en curso; etiqueta con el total encima de cada barra.
   function wigBarrasApilada(ws, metaTotal, barraUnica, colorUnica) {
-    const W = 360, H = 150, PL = 8, PR = 8, TOP = 26, BOT = 42;
-    const baseY = H - BOT, usable = baseY - TOP;
     const mesActual = MES_DE_SEM[sem];
     const fmt = v => (Math.round(v * 10) / 10).toString();
     // Semana con dato de cada elemento por mes (última captura del mes hasta sem).
@@ -302,37 +300,76 @@ function renderTablero() {
     });
     const monthHas = m => info.some(x => x.cd[m]);
     const totalMes = m => info.reduce((a, x) => a + (x.cd[m] ? getWigVal(x.cd[m], x.w.id) : 0), 0);
-    // Solo se muestran los meses con información.
     const mcon = [];
     for (let m = 0; m < 12; m++) if (monthHas(m)) mcon.push(m);
-    const slot = (W - PL - PR) / Math.max(mcon.length, 1);
-    const barW = Math.min(slot * 0.58, 46);
-    const bxAt = i => PL + slot * i + (slot - barW) / 2;
-    const cxAt = i => PL + slot * i + slot / 2;
-    let vmax = metaTotal;
-    mcon.forEach(m => { vmax = Math.max(vmax, totalMes(m)); });
-    vmax = Math.max(vmax, 1);
-    const hY = v => (v / vmax) * usable;
-    let barras = '', valores = '', meses = '', highlight = '';
-    mcon.forEach((m, i) => {
-      const cx = cxAt(i);
-      meses += `<text x="${cx.toFixed(1)}" y="${(baseY + 14).toFixed(1)}" font-size="9" fill="#666" text-anchor="middle">${MESES_G[m]}</text>`;
-      const bx = bxAt(i);
-      if (barraUnica) {
+
+    if (barraUnica) {
+      // Mismo layout que wigBarrasMesGrupo para alineación perfecta en el grid.
+      const COL = 64, PL = 34, PR = 14, TOP = 34, BOT = 48, H = 198;
+      const baseY = H - BOT, usable = baseY - TOP;
+      let vmax = metaTotal;
+      mcon.forEach(m => { vmax = Math.max(vmax, totalMes(m)); });
+      vmax = Math.max(vmax, 1);
+      const hY = v => (v / vmax) * usable;
+      const W = PL + PR + Math.max(mcon.length, 1) * COL;
+      const cxAt = i => PL + COL * i + COL / 2;
+      const bwUnica = COL * 0.56;
+      let grid = '', barras = '', valores = '', meses = '', highlight = '';
+      [25, 50, 75, 100].forEach(p => {
+        const y = baseY - hY(vmax * p / 100);
+        grid += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${(W - PR).toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(5,23,46,.07)" stroke-width="1"/>`;
+      });
+      mcon.forEach((m, i) => {
+        const cx = cxAt(i);
+        meses += `<text x="${cx.toFixed(1)}" y="${(baseY + 16).toFixed(1)}" font-size="9.5" font-weight="600" fill="#666" text-anchor="middle">${MESES_G[m]}</text>`;
         const conDatos = info.filter(it => it.cd[m]);
         if (!conDatos.length) return;
         const total = conDatos.reduce((a, it) => a + getWigVal(it.cd[m], it.w.id), 0);
         const sh = hY(total);
         const topY = baseY - sh;
+        const bx = cx - bwUnica / 2;
         const uni = (ws[0]?.uni || '').trim();
         const detalle = conDatos.map(it => `${it.w.label}: ${fmt(getWigVal(it.cd[m], it.w.id))}${uni ? ' ' + uni : ''}`).join(' · ');
         const tip = `${MESES_G[m]}: ${fmt(total)}${uni ? ' ' + uni : ''} (${detalle})`;
-        barras += `<rect x="${bx.toFixed(1)}" y="${topY.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(sh, 0.5).toFixed(1)}" rx="1.5" fill="${colorUnica}"><title>${esc(tip)}</title></rect>`;
-        valores += `<text x="${cx.toFixed(1)}" y="${(topY - 3).toFixed(1)}" font-size="8.5" font-weight="800" fill="var(--ink)" text-anchor="middle">${fmt(total)}</text>`;
+        barras += `<rect x="${bx.toFixed(1)}" y="${topY.toFixed(1)}" width="${bwUnica.toFixed(1)}" height="${Math.max(sh, 0.5).toFixed(1)}" rx="2" fill="${colorUnica}"><title>${esc(tip)}</title></rect>`;
+        valores += sh >= 16
+          ? `<text x="${cx.toFixed(1)}" y="${(topY + 12).toFixed(1)}" font-size="9" font-weight="800" fill="#fff" text-anchor="middle">${fmt(total)}</text>`
+          : `<text x="${cx.toFixed(1)}" y="${(topY - 4).toFixed(1)}" font-size="9" font-weight="800" fill="${colorUnica}" text-anchor="middle">${fmt(total)}</text>`;
         if (m === mesActual) {
-          highlight += `<rect x="${(bx - 2).toFixed(1)}" y="${TOP.toFixed(1)}" width="${(barW + 4).toFixed(1)}" height="${(baseY - TOP).toFixed(1)}" rx="3" fill="none" stroke="var(--navy)" stroke-width="1" stroke-dasharray="2 2"/>`;
+          highlight += `<rect x="${(bx - 3).toFixed(1)}" y="${TOP.toFixed(1)}" width="${(bwUnica + 6).toFixed(1)}" height="${(baseY - TOP).toFixed(1)}" rx="4" fill="none" stroke="var(--navy)" stroke-width="1" stroke-dasharray="2 2"/>`;
         }
-      } else {
+      });
+      const metaY = baseY - hY(metaTotal);
+      const metaLine = `<line x1="${PL}" y1="${metaY.toFixed(1)}" x2="${(W - PR).toFixed(1)}" y2="${metaY.toFixed(1)}" stroke="var(--cta)" stroke-width="1.2" stroke-dasharray="5 3"/>`;
+      const metaLbl = `<text x="${(PL + 3).toFixed(1)}" y="${(metaY - 4).toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--cta)" text-anchor="start">meta ${fmt(metaTotal)}</text>`;
+      const uni = (ws[0]?.uni || '').trim();
+      const leyenda = `<div class="chart-legend">
+        <span class="chart-legend-item"><span class="chart-legend-sw" style="background:${colorUnica}"></span>Total (${ws.map(w => esc(w.label)).join(' + ')})${uni ? ' · ' + uni : ''}</span>
+      </div>`;
+      return `${leyenda}<div class="wig-track-scroll"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="wig-bar-svg-grupo" aria-hidden="true">
+        ${grid}${metaLine}${barras}${highlight}${valores}
+        <line x1="${PL}" y1="${baseY}" x2="${(W - PR).toFixed(1)}" y2="${baseY}" stroke="rgba(5,23,46,.15)" stroke-width="1"/>
+        ${metaLbl}
+        ${meses}
+      </svg></div>`;
+    }
+
+    // Modo normal: apilada clásica (leyenda dentro del SVG, H=150).
+    const W = 360, H = 150, PL = 8, PR = 8, TOP = 26, BOT = 42;
+    const baseY = H - BOT, usable = baseY - TOP;
+    let vmax = metaTotal;
+    mcon.forEach(m => { vmax = Math.max(vmax, totalMes(m)); });
+    vmax = Math.max(vmax, 1);
+    const hY = v => (v / vmax) * usable;
+    const slot = (W - PL - PR) / Math.max(mcon.length, 1);
+    const barW = Math.min(slot * 0.58, 46);
+    const bxAt = i => PL + slot * i + (slot - barW) / 2;
+    const cxAt = i => PL + slot * i + slot / 2;
+    let barras = '', valores = '', meses = '', highlight = '';
+    mcon.forEach((m, i) => {
+      const cx = cxAt(i);
+      meses += `<text x="${cx.toFixed(1)}" y="${(baseY + 14).toFixed(1)}" font-size="9" fill="#666" text-anchor="middle">${MESES_G[m]}</text>`;
+      const bx = bxAt(i);
       let cursorY = baseY, total = 0;
       info.forEach(it => {
         if (!it.cd[m]) return;
@@ -349,20 +386,14 @@ function renderTablero() {
       if (m === mesActual) {
         highlight += `<rect x="${(bx - 2).toFixed(1)}" y="${TOP.toFixed(1)}" width="${(barW + 4).toFixed(1)}" height="${(baseY - TOP).toFixed(1)}" rx="3" fill="none" stroke="var(--navy)" stroke-width="1" stroke-dasharray="2 2"/>`;
       }
-      }
     });
     const metaY = baseY - hY(metaTotal);
     const metaLine = `<line x1="${PL}" y1="${metaY.toFixed(1)}" x2="${W - PR}" y2="${metaY.toFixed(1)}" stroke="var(--cta)" stroke-width="1.2" stroke-dasharray="5 3"/>`;
     let leyenda = '';
-    if (barraUnica) {
-      const uni = (ws[0]?.uni || '').trim();
-      leyenda += `<rect x="${PL}" y="4" width="9" height="9" rx="2" fill="${colorUnica}"/><text x="${PL + 12}" y="12" font-size="8.5" fill="var(--ink)">Total (${ws.map(w => esc(w.label)).join(' + ')})${uni ? ' · ' + uni : ''}</text>`;
-    } else {
-      info.forEach((it, i) => {
-        const lx = PL + i * 92;
-        leyenda += `<rect x="${lx}" y="4" width="9" height="9" rx="2" fill="${it.color}"/><text x="${lx + 12}" y="12" font-size="8.5" fill="var(--ink)">${esc(it.w.label)}</text>`;
-      });
-    }
+    info.forEach((it, i) => {
+      const lx = PL + i * 92;
+      leyenda += `<rect x="${lx}" y="4" width="9" height="9" rx="2" fill="${it.color}"/><text x="${lx + 12}" y="12" font-size="8.5" fill="var(--ink)">${esc(it.w.label)}</text>`;
+    });
     return `<svg viewBox="0 0 ${W} ${H}" class="wig-bar-svg" aria-hidden="true">
       ${leyenda}${metaLine}${barras}${highlight}${valores}
       <line x1="${PL}" y1="${baseY}" x2="${W - PR}" y2="${baseY}" stroke="rgba(5,23,46,.15)" stroke-width="1"/>
