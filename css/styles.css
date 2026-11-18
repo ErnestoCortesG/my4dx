@@ -404,6 +404,7 @@ table.ptbl tr:hover td{background:#fafaf8}
 .wagcfg-inp{max-width:70px}
 .wagcfg-sel:focus,.wagcfg-inp:focus{border-color:var(--mid);box-shadow:0 0 0 2px rgba(27,58,107,.12)}
 .wagcfg-chk{cursor:pointer;gap:5px;text-transform:none;letter-spacing:0;font-size:11px}.wagcfg-chk input{cursor:pointer;accent-color:var(--mid)}
+.wagcfg-color{width:28px;height:22px;padding:1px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:none}
 .waeuni{font-size:10px;color:var(--text-4);margin-top:2px}
 .waedel{position:absolute;top:6px;right:6px;background:none;border:none;font-size:15px;color:var(--text-4);cursor:pointer;line-height:1;padding:0 4px}
 .waedel:hover{color:var(--cta)}

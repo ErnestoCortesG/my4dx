@@ -72,9 +72,14 @@ function adminMCIsHTML() {
         </label>
         <label class="wagcfg-lbl wagcfg-chk">
           <input type="checkbox" ${cfg.barraUnica ? 'checked' : ''}
-            onchange="saveMciCfg(${n},'barraUnica',this.checked)" title="Mostrar una sola barra con el total (promedio) en vez de una barra por elemento">
+            onchange="saveMciCfg(${n},'barraUnica',this.checked)" title="Mostrar una sola barra con el total en vez de una barra por elemento">
           Barra única
         </label>
+        ${cfg.barraUnica ? `<label class="wagcfg-lbl wagcfg-chk" title="Color de la barra única">
+          <input type="color" class="wagcfg-color" value="${cfg.colorUnica || ''}"
+            onchange="saveMciCfg(${n},'colorUnica',this.value)">
+          Color
+        </label>` : ''}
         <button type="button" class="waeadd" onclick="addWigToMCI(${n})">+ Elemento</button>
         <button type="button" class="wagdel" onclick="delMCI(${n})" title="Eliminar este MCI y todos sus elementos">×</button>
       </div>
