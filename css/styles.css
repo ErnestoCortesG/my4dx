@@ -222,7 +222,7 @@ body{font-size:13px;color:#1a1a18;min-height:100vh;background:var(--bg)}
 .chart-legend-sw{width:10px;height:10px;border-radius:2.5px;flex-shrink:0}
 .chart-legend-sw.diamond{border-radius:1.5px;transform:rotate(45deg);width:8px;height:8px}
 .wig-track-scroll{margin:6px 0 2px;overflow-x:auto;padding-bottom:4px}
-.wig-bar-svg-grupo{display:block;height:198px;width:auto}
+.wig-bar-svg-grupo{display:block;height:198px;width:auto;margin:0 auto}
 .wig-semline{display:flex;align-items:center;gap:8px;padding:6px 14px 10px;border-top:1px dashed var(--border)}
 .wig-semline-lbl{font-size:9px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;flex-shrink:0}
 .wig-sem-val{font-size:13px;font-weight:800;color:var(--navy);flex-shrink:0}

@@ -305,13 +305,13 @@ function renderTablero() {
 
     if (barraUnica) {
       // Mismo layout que wigBarrasMesGrupo para alineación perfecta en el grid.
-      const COL = 64, PL = 34, PR = 14, TOP = 34, BOT = 48, H = 198;
+      const COL = 80, PL = 34, PR = 14, TOP = 34, BOT = 48, H = 198;
       const baseY = H - BOT, usable = baseY - TOP;
       let vmax = metaTotal;
       mcon.forEach(m => { vmax = Math.max(vmax, totalMes(m)); });
       vmax = Math.max(vmax, 1);
       const hY = v => (v / vmax) * usable;
-      const W = PL + PR + Math.max(mcon.length, 1) * COL;
+      const W = PL + PR + Math.max(mcon.length, 6) * COL;
       const cxAt = i => PL + COL * i + COL / 2;
       const bwUnica = COL * 0.56;
       let grid = '', barras = '', valores = '', meses = '', highlight = '';
