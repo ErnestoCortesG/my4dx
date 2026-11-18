@@ -472,6 +472,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             'wigs':       config.get('wigs', []),
             'miembros':   config.get('miembros', []),
             'mciTitulos': config.get('mciTitulos', {}),
+            'mciCfg':     config.get('mciCfg', {}),
             '_semCal':    config.get('_semCal', False),
             'semanas':    semanas,
             '_versions':  versions,
@@ -494,6 +495,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             'wigs':       data.get('wigs', []),
             'miembros':   data.get('miembros', []),
             'mciTitulos': data.get('mciTitulos', {}),
+            'mciCfg':     data.get('mciCfg', {}),
             '_semCal':    data.get('_semCal', False),
         }
         self._upsert_doc(conn, 'config', config)
