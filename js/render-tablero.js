@@ -159,7 +159,7 @@ function renderTablero() {
   // valor que tuvo el banner del MCI (ej. Conservación global) ese mes —
   // el mes en curso se omite porque ya se lee en el número grande del
   // banner y puede seguir cambiando.
-  function wigBarrasMesGrupo(ws, metaLinea, bannerEl) {
+  function wigBarrasMesGrupo(ws, metaLinea, bannerEl, barraUnica) {
     const COL = 64, PL = 34, PR = 14, TOP = 34, BOT = 48, H = 198;
     const baseY = H - BOT, usable = baseY - TOP, vmax = 100;
     const hY = v => (v / vmax) * usable;
@@ -186,6 +186,7 @@ function renderTablero() {
     const W = PL + PR + Math.max(mcon.length, 1) * COL;
     const cxAt = i => PL + COL * i + COL / 2;
     const grpW = COL * 0.7, bw = grpW / ws.length, bwv = bw - 3;
+    const bwUnica = COL * 0.56;
 
     let grid = '', barras = '', valores = '', meses = '', highlight = '', bannerFila = '';
     let bannerShown = false;
@@ -197,6 +198,23 @@ function renderTablero() {
     mcon.forEach((m, i) => {
       const cx = cxAt(i);
       meses += `<text x="${cx.toFixed(1)}" y="${(baseY + 16).toFixed(1)}" font-size="9.5" font-weight="600" fill="#666" text-anchor="middle">${MESES_G[m]}</text>`;
+      if (barraUnica) {
+        const conDatos = info.filter(it => it.cd[m]);
+        if (!conDatos.length) return;
+        const vals = conDatos.map(it => ({ it, val: getWigVal(it.cd[m], it.w.id) }));
+        const avg = vals.reduce((a, x) => a + x.val, 0) / vals.length;
+        const bx = cx - bwUnica / 2;
+        const bh = Math.max(hY(avg), 1.5);
+        const detalle = vals.map(x => `${x.it.w.label}: ${fmt(x.val)}%`).join(' · ');
+        const tip = `${MESES_G[m]}: ${fmt(avg)}% (${detalle})`;
+        barras += `<rect x="${bx.toFixed(1)}" y="${(baseY - bh).toFixed(1)}" width="${bwUnica.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${PALETA_GRUPO[0]}"><title>${esc(tip)}</title></rect>`;
+        valores += bh >= 16
+          ? `<text x="${cx.toFixed(1)}" y="${(baseY - bh + 12).toFixed(1)}" font-size="9" font-weight="800" fill="#fff" text-anchor="middle">${fmt(avg)}</text>`
+          : `<text x="${cx.toFixed(1)}" y="${(baseY - bh - 4).toFixed(1)}" font-size="9" font-weight="800" fill="${PALETA_GRUPO[0]}" text-anchor="middle">${fmt(avg)}</text>`;
+        if (m === mesActual) {
+          highlight += `<rect x="${(bx - 3).toFixed(1)}" y="${TOP.toFixed(1)}" width="${(bwUnica + 6).toFixed(1)}" height="${(baseY - TOP).toFixed(1)}" rx="4" fill="none" stroke="var(--navy)" stroke-width="1" stroke-dasharray="2 2"/>`;
+        }
+      } else {
       const grpStart = cx - grpW / 2;
       info.forEach(it => {
         if (!it.cd[m]) return;
@@ -216,6 +234,7 @@ function renderTablero() {
       });
       if (m === mesActual) {
         highlight += `<rect x="${(grpStart - 3).toFixed(1)}" y="${TOP.toFixed(1)}" width="${(grpW + 6).toFixed(1)}" height="${(baseY - TOP).toFixed(1)}" rx="4" fill="none" stroke="var(--navy)" stroke-width="1" stroke-dasharray="2 2"/>`;
+      }
       }
       // Valor del banner (ej. Conservación global) para este mes: en TODOS
       // los meses ANTERIORES al actual (el mes en curso se omite porque ya
@@ -240,10 +259,15 @@ function renderTablero() {
     // último grupo de barras, chocaba con sus valores y con la fila del banner.
     const metaLbl = `<text x="${(PL + 3).toFixed(1)}" y="${(metaY - 4).toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--cta)" text-anchor="start">meta ${fmt(metaLinea)}%</text>`;
 
-    const leyenda = `<div class="chart-legend">
-      ${info.map(it => `<span class="chart-legend-item"><span class="chart-legend-sw" style="background:${it.color}"></span>${esc(it.w.label)}</span>`).join('')}
-      ${bannerShown ? `<span class="chart-legend-item"><span class="chart-legend-sw" style="background:var(--navy)"></span>${esc(bannerEl.label)} · meses cerrados</span>` : ''}
-    </div>`;
+    const leyenda = barraUnica
+      ? `<div class="chart-legend">
+          <span class="chart-legend-item"><span class="chart-legend-sw" style="background:${PALETA_GRUPO[0]}"></span>Total (${info.map(it => esc(it.w.label)).join(' + ')})</span>
+          ${bannerShown ? `<span class="chart-legend-item"><span class="chart-legend-sw" style="background:var(--navy)"></span>${esc(bannerEl.label)} · meses cerrados</span>` : ''}
+        </div>`
+      : `<div class="chart-legend">
+          ${info.map(it => `<span class="chart-legend-item"><span class="chart-legend-sw" style="background:${it.color}"></span>${esc(it.w.label)}</span>`).join('')}
+          ${bannerShown ? `<span class="chart-legend-item"><span class="chart-legend-sw" style="background:var(--navy)"></span>${esc(bannerEl.label)} · meses cerrados</span>` : ''}
+        </div>`;
 
     return `${leyenda}<div class="wig-track-scroll"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="wig-bar-svg-grupo" aria-hidden="true">
       ${grid}${metaLine}${barras}${highlight}${valores}
@@ -341,7 +365,7 @@ function renderTablero() {
       const avgB = (typeof bannerAvgMCI === 'function') ? bannerAvgMCI(num, ws) : null;
       const chart = tipo === 'apilada'
         ? wigBarrasApilada(barras, (cfg?.metaLinea ?? 550))
-        : wigBarrasMesGrupo(barras, (cfg?.metaLinea ?? 70), bannerEl);
+        : wigBarrasMesGrupo(barras, (cfg?.metaLinea ?? 70), bannerEl, cfg?.barraUnica);
       return `<div class="mci-block">
         ${mciBannerHTML(num, tit, avgB)}
         <div class="wig-pair"><div class="wrow">

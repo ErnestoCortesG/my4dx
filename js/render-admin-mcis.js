@@ -70,6 +70,11 @@ function adminMCIsHTML() {
           <input type="number" class="wagcfg-inp" value="${cfg.metaLinea ?? ''}" placeholder="—"
             onchange="saveMciCfg(${n},'metaLinea',this.value)" title="Nivel de la línea de meta de la gráfica">
         </label>
+        <label class="wagcfg-lbl wagcfg-chk">
+          <input type="checkbox" ${cfg.barraUnica ? 'checked' : ''}
+            onchange="saveMciCfg(${n},'barraUnica',this.checked)" title="Mostrar una sola barra con el total (promedio) en vez de una barra por elemento">
+          Barra única
+        </label>
         <button type="button" class="waeadd" onclick="addWigToMCI(${n})">+ Elemento</button>
         <button type="button" class="wagdel" onclick="delMCI(${n})" title="Eliminar este MCI y todos sus elementos">×</button>
       </div>
